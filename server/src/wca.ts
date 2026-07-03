@@ -129,6 +129,46 @@ function backoffMs(attempt: number): number {
 
 // ---------- high-level operations ----------
 
+export type WcaPerson = {
+  wcaId: string;
+  name: string;
+  country: string;
+  /** 3x3 average PB in centiseconds, if they have one */
+  pb333AverageCs: number | null;
+  pb333SingleCs: number | null;
+};
+
+/** WCA IDs are 4 digits, 4 letters, 2 digits, e.g. 2016PARK03. */
+export const WCA_ID_RE = /^[0-9]{4}[A-Z]{4}[0-9]{2}$/;
+
+type WcaPersonResponse = {
+  person?: { name?: string; wca_id?: string; country_iso2?: string };
+  personal_records?: {
+    "333"?: { single?: { best?: number }; average?: { best?: number } };
+  };
+};
+
+/**
+ * Look up a WCA competitor by ID. Returns null when the ID doesn't exist
+ * (WCA answers 404). Averages come back in centiseconds already.
+ */
+export async function getPerson(wcaId: string): Promise<WcaPerson | null> {
+  const id = wcaId.trim().toUpperCase();
+  if (!WCA_ID_RE.test(id)) throw new WcaError("Not a valid WCA ID.", 400);
+  const { data } = await wcaFetch<WcaPersonResponse>(
+    `/persons/${encodeURIComponent(id)}`,
+  );
+  if (!data?.person?.wca_id) return null;
+  const pr = data.personal_records?.["333"];
+  return {
+    wcaId: data.person.wca_id,
+    name: data.person.name ?? id,
+    country: data.person.country_iso2 ?? "",
+    pb333AverageCs: pr?.average?.best && pr.average.best > 0 ? pr.average.best : null,
+    pb333SingleCs: pr?.single?.best && pr.single.best > 0 ? pr.single.best : null,
+  };
+}
+
 export async function getCompetition(id: string): Promise<WcaCompetition> {
   const { status, data } = await wcaFetch<WcaCompetition>(
     `/competitions/${encodeURIComponent(id)}`,

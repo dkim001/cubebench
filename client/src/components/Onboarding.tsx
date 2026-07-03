@@ -66,19 +66,33 @@ export function Onboarding() {
 }
 
 function Account() {
-  const { googleAvailable, signInGoogle, signInEmail } = useAuth();
+  const {
+    googleAvailable,
+    wcaOAuthAvailable,
+    signInGoogle,
+    startEmail,
+    verifyEmail,
+    signInWca,
+  } = useAuth();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
   const canGoogle = googleAvailable && clientId.length > 0;
 
   const googleRef = useRef<HTMLDivElement>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
 
+  // which email/WCA path is showing, and how far along the email code flow is
+  const [method, setMethod] = useState<"email" | "wca">("email");
+  const [emailPhase, setEmailPhase] = useState<"enter" | "code">("enter");
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [devCode, setDevCode] = useState<string | null>(null);
+  const [wcaId, setWcaId] = useState("");
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Render (and re-render on resize) the GIS button at the column's width.
   useEffect(() => {
     if (!canGoogle || !googleRef.current) return;
     let cancelled = false;
@@ -86,14 +100,10 @@ function Account() {
       if (cancelled || !googleRef.current) return;
       renderGoogleButton(googleRef.current, clientId, (credential) => {
         signInGoogle(credential).catch((err) =>
-          setGoogleError(
-            err instanceof Error ? err.message : "Google sign-in failed.",
-          ),
+          setGoogleError(err instanceof Error ? err.message : "Google sign-in failed."),
         );
       }).catch((err) =>
-        setGoogleError(
-          err instanceof Error ? err.message : "Google sign-in failed.",
-        ),
+        setGoogleError(err instanceof Error ? err.message : "Google sign-in failed."),
       );
     };
     render();
@@ -110,17 +120,43 @@ function Account() {
     };
   }, [canGoogle, clientId, signInGoogle]);
 
-  async function submit(e: React.FormEvent) {
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await signInEmail(email, name);
-      // success advances the step via the user effect in Onboarding
+      const { devCode: dc } = await startEmail(email, name);
+      setDevCode(dc ?? null);
+      setEmailPhase("code");
+      setCode("");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not create the account.",
-      );
+      setError(err instanceof Error ? err.message : "Couldn't send the code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await verifyEmail(email, code); // success advances the step
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That code isn't right.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitWca(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWca(wcaId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't find that WCA ID.");
     } finally {
       setBusy(false);
     }
@@ -141,10 +177,15 @@ function Account() {
         </p>
       </Item>
 
-      {canGoogle && (
+      {(canGoogle || wcaOAuthAvailable) && (
         <>
           <Item index={++i}>
-            <div ref={googleRef} className="gate__google" />
+            {canGoogle && <div ref={googleRef} className="gate__google" />}
+            {wcaOAuthAvailable && (
+              <a className="btn btn--secondary gate__sso" href="/api/auth/wca/start">
+                Continue with WCA
+              </a>
+            )}
             {googleError && <p className="gate__error">{googleError}</p>}
           </Item>
           <Item index={++i}>
@@ -155,50 +196,130 @@ function Account() {
         </>
       )}
 
+      {method === "email" && emailPhase === "enter" && (
+        <Item index={++i}>
+          <form className="gate__form" onSubmit={sendCode}>
+            <input
+              className="input"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+              required
+              autoFocus
+            />
+            <input
+              className="input"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <button className="btn" disabled={busy}>
+              {busy ? "Sending…" : "Send code"}
+            </button>
+            {error && <p className="gate__error">{error}</p>}
+          </form>
+        </Item>
+      )}
+
+      {method === "email" && emailPhase === "code" && (
+        <Item index={++i}>
+          <form className="gate__form" onSubmit={confirmCode}>
+            <p className="muted gate__sub gate__sub--tight">
+              We sent a 6-digit code to <strong>{email}</strong>.
+            </p>
+            <input
+              className="input gate__code mono"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              required
+              autoFocus
+            />
+            <button className="btn" disabled={busy || code.length < 6}>
+              {busy ? "Verifying…" : "Verify & continue"}
+            </button>
+            {error && <p className="gate__error">{error}</p>}
+            {devCode && (
+              <p className="tertiary gate__note">
+                Dev mode (no email provider): your code is{" "}
+                <strong className="mono">{devCode}</strong>.
+              </p>
+            )}
+            <button
+              type="button"
+              className="gate__skip"
+              onClick={() => {
+                setEmailPhase("enter");
+                setError(null);
+              }}
+            >
+              ‹ Use a different email
+            </button>
+          </form>
+        </Item>
+      )}
+
+      {method === "wca" && (
+        <Item index={++i}>
+          <form className="gate__form" onSubmit={submitWca}>
+            <input
+              className="input mono"
+              placeholder="2016PARK03"
+              value={wcaId}
+              onChange={(e) => setWcaId(e.target.value.toUpperCase())}
+              maxLength={10}
+              required
+              autoFocus
+            />
+            <button className="btn" disabled={busy}>
+              {busy ? "Looking up…" : "Continue with WCA ID"}
+            </button>
+            {error && <p className="gate__error">{error}</p>}
+            <p className="tertiary gate__note">
+              We'll pull your real name and 3×3 PB from the WCA. (This confirms
+              the ID exists, not that it's yours — that's what “Continue with
+              WCA” above is for.)
+            </p>
+          </form>
+        </Item>
+      )}
+
       <Item index={++i}>
-        <form className="gate__form" onSubmit={submit}>
-          <input
-            className="input"
-            placeholder="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={80}
-            required
-            autoFocus
-          />
-          <input
-            className="input"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <button className="btn" disabled={busy}>
-            {busy ? "Creating…" : "Continue"}
-          </button>
-          {error && <p className="gate__error">{error}</p>}
-        </form>
-      </Item>
-      <Item index={++i}>
-        <p className="tertiary gate__note">
-          No password yet — this keeps your results tied to you.
-          {!canGoogle &&
-            " Google sign-in switches on once a client ID is configured."}
-        </p>
+        <button
+          type="button"
+          className="gate__switch"
+          onClick={() => {
+            setMethod((m) => (m === "email" ? "wca" : "email"));
+            setError(null);
+            setEmailPhase("enter");
+          }}
+        >
+          {method === "email"
+            ? "Have a WCA ID? Use it instead"
+            : "Use an email instead"}
+        </button>
       </Item>
     </>
   );
 }
 
 function Profile() {
-  const { user, saveProfile } = useAuth();
+  const { user, saveProfile, linkWca } = useAuth();
   const [displayName, setDisplayName] = useState(
     user?.profile.displayName ?? user?.name ?? "",
   );
   const [level, setLevel] = useState<string>(user?.profile.avg333 ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [showWca, setShowWca] = useState(false);
+  const [wcaId, setWcaId] = useState("");
 
   async function save(value: string) {
     setError(null);
@@ -208,6 +329,19 @@ function Profile() {
       // Saving flips AppShell into the app — nothing else to do.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
+      setBusy(false);
+    }
+  }
+
+  async function link(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      // linking sets avg333 from the real PB, which completes onboarding
+      await linkWca(wcaId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't find that WCA ID.");
       setBusy(false);
     }
   }
@@ -227,7 +361,38 @@ function Profile() {
         </p>
       </Item>
 
-      <Item index={++i}>
+      {showWca && (
+        <Item index={++i}>
+          <form className="gate__form" onSubmit={link}>
+            <input
+              className="input mono"
+              placeholder="2016PARK03"
+              value={wcaId}
+              onChange={(e) => setWcaId(e.target.value.toUpperCase())}
+              maxLength={10}
+              required
+              autoFocus
+            />
+            <button className="btn" disabled={busy}>
+              {busy ? "Linking…" : "Link WCA ID & continue"}
+            </button>
+            {error && <p className="gate__error">{error}</p>}
+            <button
+              type="button"
+              className="gate__skip"
+              onClick={() => {
+                setShowWca(false);
+                setError(null);
+              }}
+            >
+              ‹ Pick a range instead
+            </button>
+          </form>
+        </Item>
+      )}
+
+      {!showWca && (
+        <Item index={++i}>
         <form
           className="gate__form"
           onSubmit={(e) => {
@@ -265,17 +430,34 @@ function Profile() {
           </button>
           {error && <p className="gate__error">{error}</p>}
         </form>
-      </Item>
-      <Item index={++i}>
-        <button
-          type="button"
-          className="gate__skip"
-          disabled={busy}
-          onClick={() => save("unsure")}
-        >
-          Not sure yet? Skip for now
-        </button>
-      </Item>
+        </Item>
+      )}
+
+      {!showWca && (
+        <Item index={++i}>
+          <div className="gate__profile-alts">
+            <button
+              type="button"
+              className="gate__switch"
+              disabled={busy}
+              onClick={() => {
+                setShowWca(true);
+                setError(null);
+              }}
+            >
+              Know your WCA ID? Use your real PB
+            </button>
+            <button
+              type="button"
+              className="gate__skip"
+              disabled={busy}
+              onClick={() => save("unsure")}
+            >
+              Not sure yet? Skip for now
+            </button>
+          </div>
+        </Item>
+      )}
     </>
   );
 }

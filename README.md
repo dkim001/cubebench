@@ -85,6 +85,25 @@ configured:
 Until then, the Google button doesn't render (no fake auth); email accounts
 work immediately.
 
+### Ways to sign in
+
+- **Email** — enter name + email, get a 6-digit code, verify. No provider is
+  configured yet, so the code is shown on-screen and logged in dev; wire AWS
+  SES in `server/src/mailer.ts` to send for real (flip `isEmailConfigured`).
+- **WCA ID** — type a WCA ID (e.g. `2016PARK03`); it's verified against the
+  public API and pulls the real name + 3×3 PB (which auto-sets the speed
+  level, skipping the profile step). This confirms the ID exists, not that
+  the person owns it.
+- **Sign in with WCA** (real OAuth, proves ownership) — register an app at
+  https://www.worldcubeassociation.org/oauth/applications with scope `public`
+  and redirect URI `http://localhost:4000/api/auth/wca/callback`, then set
+  `WCA_CLIENT_ID` / `WCA_CLIENT_SECRET` / `WCA_REDIRECT_URI` / `APP_URL` in
+  `server/.env`. The "Continue with WCA" button appears once configured.
+- **Google** — see above.
+
+Signed-in users can also link a WCA ID from the profile step to pull their
+real PB.
+
 ## Running locally
 
 Requires Node 22.18+ — the server runs TypeScript directly via Node's

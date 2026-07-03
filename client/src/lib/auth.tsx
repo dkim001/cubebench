@@ -17,12 +17,16 @@ import { store } from "./store.ts";
 
 export type User = {
   id: string;
-  email: string;
+  provider: "google" | "email" | "wca";
+  email?: string;
+  wcaId?: string;
   name: string;
-  provider: "google" | "email";
+  verified: boolean;
   profile: {
     displayName?: string;
     avg333?: string;
+    wcaId?: string;
+    pb333AverageCs?: number;
   };
 };
 
@@ -33,8 +37,14 @@ type AuthState = {
   /** true until the stored token has been checked against the server */
   loading: boolean;
   googleAvailable: boolean;
+  wcaOAuthAvailable: boolean;
   signInGoogle: (credential: string) => Promise<void>;
-  signInEmail: (email: string, name: string) => Promise<void>;
+  /** email step 1: returns whether it was really sent + the dev code if not */
+  startEmail: (email: string, name: string) => Promise<{ delivered: boolean; devCode?: string }>;
+  /** email step 2 */
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  signInWca: (wcaId: string) => Promise<void>;
+  linkWca: (wcaId: string) => Promise<void>;
   saveProfile: (profile: { displayName?: string; avg333?: string }) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -63,18 +73,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [googleAvailable, setGoogleAvailable] = useState(false);
+  const [wcaOAuthAvailable, setWcaOAuthAvailable] = useState(false);
 
-  // Restore session + discover whether the server can verify Google tokens.
+  // Restore session + discover which sign-in methods the server supports.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const cfg = await fetch("/api/auth/config").then((r) => r.json());
-        if (!cancelled) setGoogleAvailable(Boolean(cfg?.googleAvailable));
+        if (!cancelled) {
+          setGoogleAvailable(Boolean(cfg?.googleAvailable));
+          setWcaOAuthAvailable(Boolean(cfg?.wcaOAuthAvailable));
+        }
       } catch {
-        /* config is advisory; email auth still works */
+        /* config is advisory; email + WCA-ID auth still work */
       }
-      const token = store.get(TOKEN_KEY);
+      // WCA OAuth bounces back with a one-time token in the URL fragment.
+      const hash = new URLSearchParams(window.location.hash.slice(1));
+      const oauthToken = hash.get("wca_token");
+      if (oauthToken) {
+        store.set(TOKEN_KEY, oauthToken);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+      const token = oauthToken ?? store.get(TOKEN_KEY);
       if (!token) {
         if (!cancelled) setLoading(false);
         return;
@@ -116,17 +137,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [finishSignIn],
   );
 
-  const signInEmail = useCallback(
-    async (email: string, name: string) => {
+  const startEmail = useCallback(
+    (email: string, name: string) =>
+      postJson<{ delivered: boolean; devCode?: string }>(
+        "/api/auth/email/start",
+        { email, name },
+      ),
+    [],
+  );
+
+  const verifyEmail = useCallback(
+    async (email: string, code: string) => {
       finishSignIn(
-        await postJson<{ user: User; token: string }>("/api/auth/email", {
+        await postJson<{ user: User; token: string }>("/api/auth/email/verify", {
           email,
-          name,
+          code,
         }),
       );
     },
     [finishSignIn],
   );
+
+  const signInWca = useCallback(
+    async (wcaId: string) => {
+      finishSignIn(
+        await postJson<{ user: User; token: string }>("/api/auth/wca", {
+          wcaId,
+        }),
+      );
+    },
+    [finishSignIn],
+  );
+
+  const linkWca = useCallback(async (wcaId: string) => {
+    const token = store.get(TOKEN_KEY) ?? "";
+    const data = await postJson<{ user: User }>(
+      "/api/profile/link-wca",
+      { wcaId },
+      token,
+    );
+    setUser(data.user);
+  }, []);
 
   const saveProfile = useCallback(
     async (profile: { displayName?: string; avg333?: string }) => {
@@ -152,7 +203,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, googleAvailable, signInGoogle, signInEmail, saveProfile, signOut }}
+      value={{
+        user,
+        loading,
+        googleAvailable,
+        wcaOAuthAvailable,
+        signInGoogle,
+        startEmail,
+        verifyEmail,
+        signInWca,
+        linkWca,
+        saveProfile,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

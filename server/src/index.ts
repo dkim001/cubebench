@@ -10,11 +10,18 @@ import {
   AuthError,
   destroySession,
   googleAuthAvailable,
-  signInWithEmail,
   signInWithGoogle,
+  signInWithWcaId,
+  signInWithWcaOAuth,
+  startEmailVerification,
   updateProfile,
   userForToken,
+  verifyEmailCode,
+  wcaAuthorizeUrl,
+  wcaOAuthAvailable,
 } from "./auth.ts";
+import { getPerson, WCA_ID_RE } from "./wca.ts";
+import { randomBytes } from "node:crypto";
 import {
   getCompetition,
   getFirstRound333Ranking,
@@ -167,16 +174,19 @@ app.get(
   }),
 );
 
-// ---- Auth: real Google verification + passwordless email accounts ----
+// ---- Auth: Google, email codes, and WCA (ID link + real OAuth) ----
 
 function bearerToken(req: express.Request): string {
   const header = req.headers.authorization ?? "";
   return header.startsWith("Bearer ") ? header.slice(7) : "";
 }
 
-// Lets the client know whether the Google button can work at all.
+// Which sign-in methods this server can actually perform.
 app.get("/api/auth/config", (_req, res) => {
-  res.json({ googleAvailable: googleAuthAvailable() });
+  res.json({
+    googleAvailable: googleAuthAvailable(),
+    wcaOAuthAvailable: wcaOAuthAvailable(),
+  });
 });
 
 app.post(
@@ -194,15 +204,104 @@ app.post(
   }),
 );
 
+// Email step 1: send a verification code. In dev (no provider) the code is
+// returned so the flow is testable; it's never returned once real sending is on.
 app.post(
-  "/api/auth/email",
+  "/api/auth/email/start",
   authLimiter,
   wrap(async (req, res) => {
-    const { user, token } = await signInWithEmail(
+    const result = await startEmailVerification(
       typeof req.body?.email === "string" ? req.body.email : "",
       typeof req.body?.name === "string" ? req.body.name : "",
     );
+    res.json(result);
+  }),
+);
+
+// Email step 2: exchange the code for a session.
+app.post(
+  "/api/auth/email/verify",
+  authLimiter,
+  wrap(async (req, res) => {
+    const { user, token } = await verifyEmailCode(
+      typeof req.body?.email === "string" ? req.body.email : "",
+      typeof req.body?.code === "string" ? req.body.code : "",
+    );
     res.json({ user, token });
+  }),
+);
+
+// Sign in by WCA ID (verified to exist; ownership not proven).
+app.post(
+  "/api/auth/wca",
+  authLimiter,
+  wrap(async (req, res) => {
+    const { user, token } = await signInWithWcaId(
+      typeof req.body?.wcaId === "string" ? req.body.wcaId : "",
+    );
+    res.json({ user, token });
+  }),
+);
+
+// Public WCA person lookup, for linking an ID from the profile step.
+app.get(
+  "/api/wca/person/:wcaId",
+  searchLimiter,
+  wrap(async (req, res) => {
+    const wcaId = String(req.params.wcaId).toUpperCase();
+    if (!WCA_ID_RE.test(wcaId)) {
+      res.status(400).json({ error: "Not a valid WCA ID." });
+      return;
+    }
+    const person = await withCache(`person:${wcaId}`, TTL.LONG_MS, () =>
+      getPerson(wcaId),
+    );
+    if (!person) {
+      res.status(404).json({ error: "No WCA competitor with that ID." });
+      return;
+    }
+    res.json({ person });
+  }),
+);
+
+// ---- WCA OAuth (real "Sign in with WCA", config-gated) ----
+// state tokens live briefly in memory to guard the callback against CSRF.
+const wcaStates = new Map<string, number>();
+function pruneStates() {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [s, t] of wcaStates) if (t < cutoff) wcaStates.delete(s);
+}
+
+app.get("/api/auth/wca/start", (_req, res) => {
+  if (!wcaOAuthAvailable()) {
+    res.status(503).json({ error: "WCA sign-in isn't configured." });
+    return;
+  }
+  pruneStates();
+  const state = randomBytes(16).toString("hex");
+  wcaStates.set(state, Date.now());
+  res.json({ url: wcaAuthorizeUrl(state) });
+});
+
+// WCA redirects the browser here after consent; we finish server-side then
+// bounce back to the app with a one-time token in the fragment.
+app.get(
+  "/api/auth/wca/callback",
+  wrap(async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const appUrl = process.env.APP_URL ?? "http://localhost:5173";
+    if (!code || !state || !wcaStates.has(state)) {
+      res.redirect(`${appUrl}/app?wca_error=1`);
+      return;
+    }
+    wcaStates.delete(state);
+    try {
+      const { token } = await signInWithWcaOAuth(code);
+      res.redirect(`${appUrl}/app#wca_token=${token}`);
+    } catch {
+      res.redirect(`${appUrl}/app?wca_error=1`);
+    }
   }),
 );
 
@@ -236,6 +335,51 @@ app.post(
         : undefined;
     const updated = await updateProfile(user.id, { displayName, avg333 });
     res.json({ user: updated });
+  }),
+);
+
+// Link a WCA ID to the signed-in account: verified server-side, pulls the
+// real PB, and derives the speed level from it (no guessing needed).
+app.post(
+  "/api/profile/link-wca",
+  wrap(async (req, res) => {
+    const user = await userForToken(bearerToken(req));
+    if (!user) {
+      res.status(401).json({ error: "Not signed in." });
+      return;
+    }
+    const wcaId =
+      typeof req.body?.wcaId === "string" ? req.body.wcaId.toUpperCase() : "";
+    if (!WCA_ID_RE.test(wcaId)) {
+      res.status(400).json({ error: "Not a valid WCA ID." });
+      return;
+    }
+    const person = await withCache(`person:${wcaId}`, TTL.LONG_MS, () =>
+      getPerson(wcaId),
+    );
+    if (!person) {
+      res.status(404).json({ error: "No WCA competitor with that ID." });
+      return;
+    }
+    const level =
+      person.pb333AverageCs == null
+        ? undefined
+        : person.pb333AverageCs < 1500
+          ? "sub-15"
+          : person.pb333AverageCs < 2500
+            ? "15–25"
+            : person.pb333AverageCs < 4000
+              ? "25–40"
+              : person.pb333AverageCs < 6000
+                ? "40–60"
+                : "60+";
+    const updated = await updateProfile(user.id, {
+      wcaId: person.wcaId,
+      ...(person.pb333AverageCs != null
+        ? { pb333AverageCs: person.pb333AverageCs, avg333: level }
+        : {}),
+    });
+    res.json({ user: updated, person });
   }),
 );
 

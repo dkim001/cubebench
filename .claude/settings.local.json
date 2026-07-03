@@ -38,7 +38,17 @@
       "WebFetch(domain:github.com)",
       "Bash(grep -oE 'animation:[^;\"}]{5,80}' linear.html)",
       "Bash(python3)",
-      "Bash(grep -oE 'font-size:\\(56|64|72|80\\)px[^}]{0,100}' attio.html)"
+      "Bash(grep -oE 'font-size:\\(56|64|72|80\\)px[^}]{0,100}' attio.html)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Declare Node >=22.18 engines; correct README requirement *)",
+      "Bash(sed -i '' 's/localStorage\\\\.getItem\\(TOKEN_KEY\\)/store.get\\(TOKEN_KEY\\)/g; s/localStorage\\\\.removeItem\\(TOKEN_KEY\\)/store.remove\\(TOKEN_KEY\\)/g; s/localStorage\\\\.setItem\\(TOKEN_KEY, data\\\\.token\\)/store.set\\(TOKEN_KEY, data.token\\)/g' lib/auth.tsx)",
+      "Bash(sed -i '' 's/localStorage\\\\.getItem\\(INTRO_SEEN_KEY\\)/store.get\\(INTRO_SEEN_KEY\\)/; s/localStorage\\\\.setItem\\(INTRO_SEEN_KEY, \"1\"\\)/store.set\\(INTRO_SEEN_KEY, \"1\"\\)/' pages/SkillTimer.tsx)",
+      "Bash(sed -i '' -e 's/transition: color 0\\\\.15s ease;/transition: color var\\(--speed-ui\\) var\\(--ease-out\\);/' -e 's/animation: rise 0\\\\.5s cubic-bezier\\(0\\\\.16, 1, 0\\\\.3, 1\\);/animation: rise var\\(--speed-reveal\\) var\\(--ease-out\\);/' -e 's/transition: border-color 0\\\\.18s ease, box-shadow 0\\\\.18s ease;/transition: border-color var\\(--speed-ui\\) var\\(--ease-out\\), box-shadow var\\(--speed-ui\\) var\\(--ease-out\\);/' index.css)",
+      "Bash(sed -i '' -e 's/transition: background 0\\\\.15s ease;/transition: background var\\(--speed-ui\\) var\\(--ease-out\\);/' -e 's/transition: color 0\\\\.15s ease;/transition: color var\\(--speed-ui\\) var\\(--ease-out\\);/' -e 's/transition: width 0\\\\.6s cubic-bezier\\(0\\\\.16, 1, 0\\\\.3, 1\\);/transition: width var\\(--speed-reveal\\) var\\(--ease-out\\);/' app.css)",
+      "Bash(python3 -)",
+      "Bash(curl -s --max-time 20 \"https://www.worldcubeassociation.org/api/v0/persons/2009ZEMD01\")",
+      "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\).on\\(\"end\",\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\({person:{name:j.person?.name,wca_id:j.person?.wca_id,country:j.person?.country_iso2},pr333:j.personal_records?.[\"333\"]},null,1\\)\\)}\\)')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 15 \"https://www.worldcubeassociation.org/api/v0/persons/9999XXXX99\")"
     ]
   }
 }
