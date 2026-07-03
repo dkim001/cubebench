@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
   "description": "Express proxy for the WCA public API: scramble grouping, round sorting, ranking, caching.",
   "scripts": {
     "dev": "node --watch --env-file-if-exists=.env src/index.ts",

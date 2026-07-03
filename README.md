@@ -87,7 +87,8 @@ work immediately.
 
 ## Running locally
 
-Requires Node 20+ (developed on Node 26).
+Requires Node 22.18+ — the server runs TypeScript directly via Node's
+type-stripping and uses `--env-file-if-exists` (developed on Node 26).
 
 ```bash
 # Terminal 1 — backend (port 4000)
