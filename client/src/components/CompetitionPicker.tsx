@@ -8,6 +8,7 @@ import {
 } from "../lib/api.ts";
 import { FEATURED_COMPS, FEATURED_COMP_IDS } from "../lib/featured.ts";
 import { isTouchDevice } from "../lib/pointer.ts";
+import { useAuth } from "../lib/auth.tsx";
 
 /**
  * Competition picker with visual free/Pro gating (no accounts in this
@@ -25,6 +26,8 @@ export function CompetitionPicker({
   onProceed: (comp: Competition, round: RoundScrambleSet) => void;
 }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isPro = Boolean(user?.pro);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,7 +75,7 @@ export function CompetitionPicker({
 
   async function select(comp: Competition) {
     if (selectingId || unavailable[comp.id]) return;
-    if (!FEATURED_COMP_IDS.has(comp.id)) {
+    if (!FEATURED_COMP_IDS.has(comp.id) && !isPro) {
       navigate("/app/pricing");
       return;
     }
@@ -162,7 +165,7 @@ export function CompetitionPicker({
           rows.map((comp) => {
             const note = unavailable[comp.id];
             const busy = selectingId === comp.id;
-            const locked = !FEATURED_COMP_IDS.has(comp.id);
+            const locked = !FEATURED_COMP_IDS.has(comp.id) && !isPro;
             return (
               <button
                 key={comp.id}

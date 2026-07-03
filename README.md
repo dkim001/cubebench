@@ -82,27 +82,49 @@ configured:
    - `server/.env` → `GOOGLE_CLIENT_ID=<your-id>`
 6. Restart both dev servers.
 
-Until then, the Google button doesn't render (no fake auth); email accounts
-work immediately.
+Until then, the Google button doesn't render (no fake auth); email + password
+accounts work immediately.
 
 ### Ways to sign in
 
-- **Email** — enter name + email, get a 6-digit code, verify. No provider is
-  configured yet, so the code is shown on-screen and logged in dev; wire AWS
-  SES in `server/src/mailer.ts` to send for real (flip `isEmailConfigured`).
-- **WCA ID** — type a WCA ID (e.g. `2016PARK03`); it's verified against the
-  public API and pulls the real name + 3×3 PB (which auto-sets the speed
-  level, skipping the profile step). This confirms the ID exists, not that
-  the person owns it.
-- **Sign in with WCA** (real OAuth, proves ownership) — register an app at
-  https://www.worldcubeassociation.org/oauth/applications with scope `public`
-  and redirect URI `http://localhost:4000/api/auth/wca/callback`, then set
-  `WCA_CLIENT_ID` / `WCA_CLIENT_SECRET` / `WCA_REDIRECT_URI` / `APP_URL` in
-  `server/.env`. The "Continue with WCA" button appears once configured.
+- **Email + password** — standard sign up / sign in. Passwords are hashed
+  (scrypt, per-user salt); the hash never leaves the server. Works with no
+  configuration.
 - **Google** — see above.
 
-Signed-in users can also link a WCA ID from the profile step to pull their
-real PB.
+## Pro subscription (Stripe)
+
+Pro is a real Stripe subscription — **$3/month, first month free** — using
+Stripe's hosted Checkout, so no card data ever touches this server. It's off
+until you connect Stripe; until then the Pro button falls back to an honest
+early-access email capture (no fake checkout).
+
+**Connect Stripe:**
+
+1. In the [Stripe Dashboard](https://dashboard.stripe.com) (start in **Test
+   mode**), create a **Product** with a **recurring $3/month price**. Copy the
+   price id (`price_…`).
+2. Copy your **secret key** (`sk_test_…`).
+3. Create a **webhook endpoint** pointing at
+   `<server>/api/billing/webhook`, subscribed to
+   `customer.subscription.created`, `.updated`, and `.deleted`. Copy its
+   **signing secret** (`whsec_…`).
+   - Locally, instead of a public URL, run the Stripe CLI:
+     `stripe listen --forward-to localhost:4000/api/billing/webhook`
+     and use the `whsec_…` it prints.
+4. Put them in `server/.env`:
+   ```
+   STRIPE_SECRET_KEY=sk_test_…
+   STRIPE_PRICE_ID=price_…
+   STRIPE_WEBHOOK_SECRET=whsec_…
+   APP_URL=http://localhost:5173
+   ```
+5. Restart the backend. "Upgrade to Pro" now opens real Checkout; the webhook
+   grants/revokes Pro, and the plan is enforced server-side (the full comp
+   library unlocks for Pro accounts). Use Stripe's test card `4242 4242 4242
+   4242` to try it end to end.
+
+Go live by swapping the test keys/price/webhook for live-mode ones.
 
 ## Running locally
 

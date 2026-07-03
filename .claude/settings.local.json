@@ -48,7 +48,13 @@
       "Bash(python3 -)",
       "Bash(curl -s --max-time 20 \"https://www.worldcubeassociation.org/api/v0/persons/2009ZEMD01\")",
       "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\).on\\(\"end\",\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\({person:{name:j.person?.name,wca_id:j.person?.wca_id,country:j.person?.country_iso2},pr333:j.personal_records?.[\"333\"]},null,1\\)\\)}\\)')",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 15 \"https://www.worldcubeassociation.org/api/v0/persons/9999XXXX99\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 15 \"https://www.worldcubeassociation.org/api/v0/persons/9999XXXX99\")",
+      "Bash(printf '\\\\n# TS build info \\(regenerated every build\\)\\\\n*.tsbuildinfo\\\\n')",
+      "Bash(git rm *)",
+      "Bash(git commit -q -m 'Stop tracking tsbuildinfo build artifact *)",
+      "Bash(node --check src/index.ts)",
+      "Bash(node -e \"import\\('./src/auth.ts'\\).then\\(\\(\\)=>console.log\\('auth ok'\\)\\).catch\\(e=>console.log\\('auth ERR',e.message\\)\\)\")",
+      "Bash(node -e \"import\\('./src/auth.ts'\\).then\\(m=>m.getUser\\('x'\\)\\).then\\(\\(\\)=>console.log\\('server loads users ok'\\)\\).catch\\(e=>console.log\\('ERR',e.message\\)\\)\")"
     ]
   }
 }

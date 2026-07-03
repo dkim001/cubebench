@@ -1799,6 +1799,14 @@
   margin-top: 6px;
 }
 
+.pricing__notice {
+  padding: 14px 18px;
+  font-size: 14px;
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
 /* one shared surface with a hairline divider — hierarchy comes from the
    accent label and the single filled button, not a ringed "pro" card */
 .pricing__card {

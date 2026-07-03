@@ -1,12 +1,33 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useAuth } from "../lib/auth.tsx";
 import { submitEarlyAccess } from "../lib/api.ts";
 
 /**
- * Two plans, honestly stated. Pro is not purchasable yet: the button opens a
- * plain email capture, the copy says so, and no payment is taken anywhere.
+ * Two plans. Pro is a real Stripe subscription ($3/mo, first month free) when
+ * billing is configured; until then it falls back to an honest early-access
+ * email capture — no fake checkout ever.
  */
 export default function Pricing() {
+  const { user, billingAvailable, startCheckout, openPortal, refresh } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Returning from Stripe Checkout: refresh the plan and show the outcome.
+  useEffect(() => {
+    const upgrade = params.get("upgrade");
+    if (!upgrade) return;
+    if (upgrade === "success") {
+      setNotice("You're on Pro — welcome in. Your first month is free.");
+      refresh();
+    } else if (upgrade === "cancelled") {
+      setNotice("No worries — checkout cancelled, nothing was charged.");
+    }
+    params.delete("upgrade");
+    setParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="screen container pricing">
       <div className="pricing__head">
@@ -14,7 +35,8 @@ export default function Pricing() {
         <h1 className="title">Practice free. Benchmark deeper with Pro.</h1>
       </div>
 
-      {/* one surface, two voices — same pattern as the landing's why-card */}
+      {notice && <div className="card pricing__notice">{notice}</div>}
+
       <div className="card pricing__card">
         <div className="pricing__col">
           <span className="why__label">Free</span>
@@ -44,16 +66,85 @@ export default function Pricing() {
             <li>Skill analytics over time — progress across sessions</li>
             <li>Everything in Free</li>
           </ul>
-          <EarlyAccess />
+          <ProAction
+            isPro={Boolean(user?.pro)}
+            billingAvailable={billingAvailable}
+            startCheckout={startCheckout}
+            openPortal={openPortal}
+          />
         </div>
       </div>
 
       <p className="pricing__note tertiary">
-        Pro is launching soon. No payment is taken now — leaving your email
-        just reserves your first month free at launch.
+        {billingAvailable
+          ? "Cancel anytime. Your first month is free — you won't be charged until it ends."
+          : "Pro is launching soon. No payment is taken now."}
       </p>
     </div>
   );
+}
+
+function ProAction({
+  isPro,
+  billingAvailable,
+  startCheckout,
+  openPortal,
+}: {
+  isPro: boolean;
+  billingAvailable: boolean;
+  startCheckout: () => Promise<void>;
+  openPortal: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function go(fn: () => Promise<void>) {
+    setError(null);
+    setBusy(true);
+    try {
+      await fn(); // redirects to Stripe on success
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setBusy(false);
+    }
+  }
+
+  if (isPro) {
+    return (
+      <div className="plan__cta-wrap">
+        <p className="plan__done">You're on Pro. Thanks for the support.</p>
+        <button
+          className="btn btn--secondary plan__cta"
+          disabled={busy}
+          onClick={() => go(openPortal)}
+        >
+          {busy ? "Opening…" : "Manage subscription"}
+        </button>
+        {error && <p className="plan__error">{error}</p>}
+      </div>
+    );
+  }
+
+  if (billingAvailable) {
+    return (
+      <div className="plan__cta-wrap">
+        <button
+          className="btn plan__cta"
+          disabled={busy}
+          onClick={() => go(startCheckout)}
+        >
+          {busy ? "Starting…" : "Upgrade to Pro"}
+        </button>
+        <p className="plan__honest tertiary">
+          Secure checkout by Stripe · cancel anytime
+        </p>
+        {error && <p className="plan__error">{error}</p>}
+      </div>
+    );
+  }
+
+  // Billing not configured yet — honest early-access capture.
+  return <EarlyAccess />;
 }
 
 function EarlyAccess() {
@@ -71,9 +162,7 @@ function EarlyAccess() {
       setState("done");
     } catch (err) {
       setState("idle");
-      setError(
-        err instanceof Error ? err.message : "Something went wrong — try again.",
-      );
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     }
   }
 
@@ -91,9 +180,7 @@ function EarlyAccess() {
         <button className="btn plan__cta" onClick={() => setOpen(true)}>
           Get early access
         </button>
-        <p className="plan__honest tertiary">
-          Launching soon · no payment now
-        </p>
+        <p className="plan__honest tertiary">Launching soon · no payment now</p>
       </div>
     );
   }
@@ -114,8 +201,7 @@ function EarlyAccess() {
       </button>
       {error && <p className="plan__error">{error}</p>}
       <p className="plan__honest tertiary">
-        Pro is launching soon. No payment is taken now — you'll just get the
-        first month free when it ships.
+        Pro is launching soon. No payment is taken now.
       </p>
     </form>
   );

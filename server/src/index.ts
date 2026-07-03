@@ -10,18 +10,22 @@ import {
   AuthError,
   destroySession,
   googleAuthAvailable,
+  isPro,
+  publicUser,
+  signInWithEmail,
   signInWithGoogle,
-  signInWithWcaId,
-  signInWithWcaOAuth,
-  startEmailVerification,
+  signUpWithEmail,
   updateProfile,
   userForToken,
-  verifyEmailCode,
-  wcaAuthorizeUrl,
-  wcaOAuthAvailable,
 } from "./auth.ts";
-import { getPerson, WCA_ID_RE } from "./wca.ts";
-import { randomBytes } from "node:crypto";
+import {
+  BillingError,
+  createCheckoutUrl,
+  createPortalUrl,
+  handleWebhook,
+  stripeConfigured,
+} from "./billing.ts";
+import { FEATURED_COMP_IDS } from "./featured.ts";
 import {
   getCompetition,
   getFirstRound333Ranking,
@@ -34,7 +38,13 @@ const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
 
 app.use(cors());
-app.use(express.json());
+// Stripe webhook needs the raw body for signature verification; every other
+// route gets JSON parsing.
+app.use((req, res, next) =>
+  req.originalUrl === "/api/billing/webhook"
+    ? next()
+    : express.json()(req, res, next),
+);
 
 // ---- Rate limits: the unauthenticated write/search endpoints are the
 // abuse surface (each miss can also fan out to WCA). Per-IP, in-memory. ----
@@ -142,6 +152,18 @@ app.get(
   "/api/competitions/:id/round",
   wrap(async (req, res) => {
     const { id } = req.params;
+    // Server-side gating: featured comps are free; the rest need Pro. Enforced
+    // here so the plan can't be bypassed from devtools.
+    if (!FEATURED_COMP_IDS.has(id)) {
+      const user = await userForToken(bearerToken(req));
+      if (!isPro(user)) {
+        res.status(403).json({
+          error: "This competition is part of Cube Bench Pro.",
+          upgrade: true,
+        });
+        return;
+      }
+    }
     const [comp, round] = await Promise.all([
       withCache(`comp:${id}`, TTL.SHORT_MS, () => getCompetition(id)),
       // Scrambles are immutable once generated -> cache long.
@@ -174,18 +196,27 @@ app.get(
   }),
 );
 
-// ---- Auth: Google, email codes, and WCA (ID link + real OAuth) ----
+// ---- Auth: Google + email/password ----
 
 function bearerToken(req: express.Request): string {
   const header = req.headers.authorization ?? "";
   return header.startsWith("Bearer ") ? header.slice(7) : "";
 }
 
-// Which sign-in methods this server can actually perform.
+async function requireUser(req: express.Request, res: express.Response) {
+  const user = await userForToken(bearerToken(req));
+  if (!user) {
+    res.status(401).json({ error: "Not signed in." });
+    return null;
+  }
+  return user;
+}
+
+// What this server can actually do (drives which buttons the client shows).
 app.get("/api/auth/config", (_req, res) => {
   res.json({
     googleAvailable: googleAuthAvailable(),
-    wcaOAuthAvailable: wcaOAuthAvailable(),
+    billingAvailable: stripeConfigured(),
   });
 });
 
@@ -200,131 +231,49 @@ app.post(
       return;
     }
     const { user, token } = await signInWithGoogle(credential);
-    res.json({ user, token });
+    res.json({ user: publicUser(user), token });
   }),
 );
 
-// Email step 1: send a verification code. In dev (no provider) the code is
-// returned so the flow is testable; it's never returned once real sending is on.
 app.post(
-  "/api/auth/email/start",
+  "/api/auth/signup",
   authLimiter,
   wrap(async (req, res) => {
-    const result = await startEmailVerification(
+    const { user, token } = await signUpWithEmail(
       typeof req.body?.email === "string" ? req.body.email : "",
+      typeof req.body?.password === "string" ? req.body.password : "",
       typeof req.body?.name === "string" ? req.body.name : "",
     );
-    res.json(result);
+    res.json({ user: publicUser(user), token });
   }),
 );
 
-// Email step 2: exchange the code for a session.
 app.post(
-  "/api/auth/email/verify",
+  "/api/auth/signin",
   authLimiter,
   wrap(async (req, res) => {
-    const { user, token } = await verifyEmailCode(
+    const { user, token } = await signInWithEmail(
       typeof req.body?.email === "string" ? req.body.email : "",
-      typeof req.body?.code === "string" ? req.body.code : "",
+      typeof req.body?.password === "string" ? req.body.password : "",
     );
-    res.json({ user, token });
-  }),
-);
-
-// Sign in by WCA ID (verified to exist; ownership not proven).
-app.post(
-  "/api/auth/wca",
-  authLimiter,
-  wrap(async (req, res) => {
-    const { user, token } = await signInWithWcaId(
-      typeof req.body?.wcaId === "string" ? req.body.wcaId : "",
-    );
-    res.json({ user, token });
-  }),
-);
-
-// Public WCA person lookup, for linking an ID from the profile step.
-app.get(
-  "/api/wca/person/:wcaId",
-  searchLimiter,
-  wrap(async (req, res) => {
-    const wcaId = String(req.params.wcaId).toUpperCase();
-    if (!WCA_ID_RE.test(wcaId)) {
-      res.status(400).json({ error: "Not a valid WCA ID." });
-      return;
-    }
-    const person = await withCache(`person:${wcaId}`, TTL.LONG_MS, () =>
-      getPerson(wcaId),
-    );
-    if (!person) {
-      res.status(404).json({ error: "No WCA competitor with that ID." });
-      return;
-    }
-    res.json({ person });
-  }),
-);
-
-// ---- WCA OAuth (real "Sign in with WCA", config-gated) ----
-// state tokens live briefly in memory to guard the callback against CSRF.
-const wcaStates = new Map<string, number>();
-function pruneStates() {
-  const cutoff = Date.now() - 10 * 60 * 1000;
-  for (const [s, t] of wcaStates) if (t < cutoff) wcaStates.delete(s);
-}
-
-app.get("/api/auth/wca/start", (_req, res) => {
-  if (!wcaOAuthAvailable()) {
-    res.status(503).json({ error: "WCA sign-in isn't configured." });
-    return;
-  }
-  pruneStates();
-  const state = randomBytes(16).toString("hex");
-  wcaStates.set(state, Date.now());
-  res.json({ url: wcaAuthorizeUrl(state) });
-});
-
-// WCA redirects the browser here after consent; we finish server-side then
-// bounce back to the app with a one-time token in the fragment.
-app.get(
-  "/api/auth/wca/callback",
-  wrap(async (req, res) => {
-    const code = typeof req.query.code === "string" ? req.query.code : "";
-    const state = typeof req.query.state === "string" ? req.query.state : "";
-    const appUrl = process.env.APP_URL ?? "http://localhost:5173";
-    if (!code || !state || !wcaStates.has(state)) {
-      res.redirect(`${appUrl}/app?wca_error=1`);
-      return;
-    }
-    wcaStates.delete(state);
-    try {
-      const { token } = await signInWithWcaOAuth(code);
-      res.redirect(`${appUrl}/app#wca_token=${token}`);
-    } catch {
-      res.redirect(`${appUrl}/app?wca_error=1`);
-    }
+    res.json({ user: publicUser(user), token });
   }),
 );
 
 app.get(
   "/api/me",
   wrap(async (req, res) => {
-    const user = await userForToken(bearerToken(req));
-    if (!user) {
-      res.status(401).json({ error: "Not signed in." });
-      return;
-    }
-    res.json({ user });
+    const user = await requireUser(req, res);
+    if (!user) return;
+    res.json({ user: publicUser(user) });
   }),
 );
 
 app.post(
   "/api/profile",
   wrap(async (req, res) => {
-    const user = await userForToken(bearerToken(req));
-    if (!user) {
-      res.status(401).json({ error: "Not signed in." });
-      return;
-    }
+    const user = await requireUser(req, res);
+    if (!user) return;
     const displayName =
       typeof req.body?.displayName === "string"
         ? req.body.displayName.trim().slice(0, 80)
@@ -334,52 +283,7 @@ app.post(
         ? req.body.avg333.trim().slice(0, 20)
         : undefined;
     const updated = await updateProfile(user.id, { displayName, avg333 });
-    res.json({ user: updated });
-  }),
-);
-
-// Link a WCA ID to the signed-in account: verified server-side, pulls the
-// real PB, and derives the speed level from it (no guessing needed).
-app.post(
-  "/api/profile/link-wca",
-  wrap(async (req, res) => {
-    const user = await userForToken(bearerToken(req));
-    if (!user) {
-      res.status(401).json({ error: "Not signed in." });
-      return;
-    }
-    const wcaId =
-      typeof req.body?.wcaId === "string" ? req.body.wcaId.toUpperCase() : "";
-    if (!WCA_ID_RE.test(wcaId)) {
-      res.status(400).json({ error: "Not a valid WCA ID." });
-      return;
-    }
-    const person = await withCache(`person:${wcaId}`, TTL.LONG_MS, () =>
-      getPerson(wcaId),
-    );
-    if (!person) {
-      res.status(404).json({ error: "No WCA competitor with that ID." });
-      return;
-    }
-    const level =
-      person.pb333AverageCs == null
-        ? undefined
-        : person.pb333AverageCs < 1500
-          ? "sub-15"
-          : person.pb333AverageCs < 2500
-            ? "15–25"
-            : person.pb333AverageCs < 4000
-              ? "25–40"
-              : person.pb333AverageCs < 6000
-                ? "40–60"
-                : "60+";
-    const updated = await updateProfile(user.id, {
-      wcaId: person.wcaId,
-      ...(person.pb333AverageCs != null
-        ? { pb333AverageCs: person.pb333AverageCs, avg333: level }
-        : {}),
-    });
-    res.json({ user: updated, person });
+    res.json({ user: updated ? publicUser(updated) : null });
   }),
 );
 
@@ -387,6 +291,45 @@ app.post("/api/auth/signout", (req, res) => {
   destroySession(bearerToken(req));
   res.json({ status: "ok" });
 });
+
+// ---- Billing: real Stripe subscription (config-gated) ----
+
+// Start hosted Checkout for Pro; returns a Stripe URL to redirect to.
+app.post(
+  "/api/billing/checkout",
+  authLimiter,
+  wrap(async (req, res) => {
+    const user = await requireUser(req, res);
+    if (!user) return;
+    const url = await createCheckoutUrl(user);
+    res.json({ url });
+  }),
+);
+
+// Stripe Billing Portal, for managing or cancelling an existing subscription.
+app.post(
+  "/api/billing/portal",
+  wrap(async (req, res) => {
+    const user = await requireUser(req, res);
+    if (!user) return;
+    const url = await createPortalUrl(user);
+    res.json({ url });
+  }),
+);
+
+// Stripe webhook — the only writer of subscription state. Raw body (see the
+// JSON-parser skip above) so the signature verifies.
+app.post(
+  "/api/billing/webhook",
+  express.raw({ type: "*/*" }),
+  wrap(async (req, res) => {
+    await handleWebhook(
+      req.body as Buffer,
+      req.headers["stripe-signature"] as string | undefined,
+    );
+    res.json({ received: true });
+  }),
+);
 
 // ---- Early access email capture ----
 // Honest pre-launch capture only: no payment, no checkout, just an email
@@ -463,7 +406,9 @@ app.use(
         ? ((err as { status: number }).status as number)
         : undefined;
     const status =
-      err instanceof WcaError || err instanceof AuthError
+      err instanceof WcaError ||
+      err instanceof AuthError ||
+      err instanceof BillingError
         ? err.status
         : middlewareStatus && middlewareStatus >= 400 && middlewareStatus < 500
           ? middlewareStatus

@@ -17,16 +17,14 @@ import { store } from "./store.ts";
 
 export type User = {
   id: string;
-  provider: "google" | "email" | "wca";
-  email?: string;
-  wcaId?: string;
+  provider: "google" | "email";
+  email: string;
   name: string;
-  verified: boolean;
+  /** true while trialing or subscribed */
+  pro: boolean;
   profile: {
     displayName?: string;
     avg333?: string;
-    wcaId?: string;
-    pb333AverageCs?: number;
   };
 };
 
@@ -37,15 +35,17 @@ type AuthState = {
   /** true until the stored token has been checked against the server */
   loading: boolean;
   googleAvailable: boolean;
-  wcaOAuthAvailable: boolean;
+  billingAvailable: boolean;
   signInGoogle: (credential: string) => Promise<void>;
-  /** email step 1: returns whether it was really sent + the dev code if not */
-  startEmail: (email: string, name: string) => Promise<{ delivered: boolean; devCode?: string }>;
-  /** email step 2 */
-  verifyEmail: (email: string, code: string) => Promise<void>;
-  signInWca: (wcaId: string) => Promise<void>;
-  linkWca: (wcaId: string) => Promise<void>;
+  signUpEmail: (email: string, password: string, name: string) => Promise<void>;
+  signInEmail: (email: string, password: string) => Promise<void>;
   saveProfile: (profile: { displayName?: string; avg333?: string }) => Promise<void>;
+  /** refresh the current user from the server (after returning from Stripe) */
+  refresh: () => Promise<void>;
+  /** redirect to Stripe Checkout for Pro */
+  startCheckout: () => Promise<void>;
+  /** redirect to the Stripe Billing Portal to manage/cancel */
+  openPortal: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [googleAvailable, setGoogleAvailable] = useState(false);
-  const [wcaOAuthAvailable, setWcaOAuthAvailable] = useState(false);
+  const [billingAvailable, setBillingAvailable] = useState(false);
 
   // Restore session + discover which sign-in methods the server supports.
   useEffect(() => {
@@ -83,19 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cfg = await fetch("/api/auth/config").then((r) => r.json());
         if (!cancelled) {
           setGoogleAvailable(Boolean(cfg?.googleAvailable));
-          setWcaOAuthAvailable(Boolean(cfg?.wcaOAuthAvailable));
+          setBillingAvailable(Boolean(cfg?.billingAvailable));
         }
       } catch {
-        /* config is advisory; email + WCA-ID auth still work */
+        /* config is advisory; email auth still works */
       }
-      // WCA OAuth bounces back with a one-time token in the URL fragment.
-      const hash = new URLSearchParams(window.location.hash.slice(1));
-      const oauthToken = hash.get("wca_token");
-      if (oauthToken) {
-        store.set(TOKEN_KEY, oauthToken);
-        window.history.replaceState(null, "", window.location.pathname);
-      }
-      const token = oauthToken ?? store.get(TOKEN_KEY);
+      const token = store.get(TOKEN_KEY);
       if (!token) {
         if (!cancelled) setLoading(false);
         return;
@@ -137,46 +130,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [finishSignIn],
   );
 
-  const startEmail = useCallback(
-    (email: string, name: string) =>
-      postJson<{ delivered: boolean; devCode?: string }>(
-        "/api/auth/email/start",
-        { email, name },
-      ),
-    [],
-  );
-
-  const verifyEmail = useCallback(
-    async (email: string, code: string) => {
+  const signUpEmail = useCallback(
+    async (email: string, password: string, name: string) => {
       finishSignIn(
-        await postJson<{ user: User; token: string }>("/api/auth/email/verify", {
+        await postJson<{ user: User; token: string }>("/api/auth/signup", {
           email,
-          code,
+          password,
+          name,
         }),
       );
     },
     [finishSignIn],
   );
 
-  const signInWca = useCallback(
-    async (wcaId: string) => {
+  const signInEmail = useCallback(
+    async (email: string, password: string) => {
       finishSignIn(
-        await postJson<{ user: User; token: string }>("/api/auth/wca", {
-          wcaId,
+        await postJson<{ user: User; token: string }>("/api/auth/signin", {
+          email,
+          password,
         }),
       );
     },
     [finishSignIn],
   );
 
-  const linkWca = useCallback(async (wcaId: string) => {
-    const token = store.get(TOKEN_KEY) ?? "";
-    const data = await postJson<{ user: User }>(
-      "/api/profile/link-wca",
-      { wcaId },
-      token,
-    );
-    setUser(data.user);
+  const refresh = useCallback(async () => {
+    const token = store.get(TOKEN_KEY);
+    if (!token) return;
+    try {
+      const res = await fetch("/api/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setUser((await res.json()).user);
+    } catch {
+      /* leave current state on a transient failure */
+    }
   }, []);
 
   const saveProfile = useCallback(
@@ -187,6 +176,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const startCheckout = useCallback(async () => {
+    const token = store.get(TOKEN_KEY) ?? "";
+    const { url } = await postJson<{ url: string }>(
+      "/api/billing/checkout",
+      {},
+      token,
+    );
+    window.location.href = url;
+  }, []);
+
+  const openPortal = useCallback(async () => {
+    const token = store.get(TOKEN_KEY) ?? "";
+    const { url } = await postJson<{ url: string }>(
+      "/api/billing/portal",
+      {},
+      token,
+    );
+    window.location.href = url;
+  }, []);
 
   const signOut = useCallback(async () => {
     const token = store.get(TOKEN_KEY);
@@ -207,13 +216,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         googleAvailable,
-        wcaOAuthAvailable,
+        billingAvailable,
         signInGoogle,
-        startEmail,
-        verifyEmail,
-        signInWca,
-        linkWca,
+        signUpEmail,
+        signInEmail,
         saveProfile,
+        refresh,
+        startCheckout,
+        openPortal,
         signOut,
       }}
     >
