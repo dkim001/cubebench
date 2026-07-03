@@ -83,41 +83,33 @@ export default function SkillTimer() {
       <div className="screen container container--gate skill-intro">
         <span className="eyebrow">Skill Timer</span>
         <h1 className="title">Find out where your solve is slow.</h1>
-        <p className="muted onboard__lead">
-          The Skill Timer is a practice tool that times each part of your
-          solve, not just the total. One tap of the spacebar at the end of
-          each stage splits your solve into its four phases:
+        <p className="muted gate__sub">
+          The Skill Timer times each part of your solve, not just the total.
+          One tap of the spacebar at the end of each stage splits your solve
+          into its four phases:
         </p>
-        <ol className="steps">
-          <li>
-            <span className="steps__n">1</span>
-            <span>
-              <strong>Cross</strong> — your first four edges
-            </span>
-          </li>
-          <li>
-            <span className="steps__n">2</span>
-            <span>
-              <strong>F2L</strong> — first two layers
-            </span>
-          </li>
-          <li>
-            <span className="steps__n">3</span>
-            <span>
-              <strong>OLL</strong> — orienting the last layer
-            </span>
-          </li>
-          <li>
-            <span className="steps__n">4</span>
-            <span>
-              <strong>PLL</strong> — permuting the last layer, solve done
-            </span>
-          </li>
+        <ol className="stage-list">
+          {(
+            [
+              ["1", "Cross", "your first four edges"],
+              ["2", "F2L", "first two layers"],
+              ["3", "OLL", "orienting the last layer"],
+              ["4", "PLL", "permuting the last layer — solve done"],
+            ] as const
+          ).map(([n, name, desc]) => (
+            <li className="stage-list__row" key={n}>
+              <span className="stage-list__n mono" aria-hidden="true">
+                {n}
+              </span>
+              <span className="stage-list__name">{name}</span>
+              <span className="muted stage-list__desc">{desc}</span>
+            </li>
+          ))}
         </ol>
-        <p className="muted onboard__lead">
-          Solve as much as you like — the session summary adds it up and shows
-          which stage is eating the biggest share of your time. Scrambles are
-          proper random-state practice scrambles.
+        <p className="muted gate__sub">
+          Solve as much as you like — the session summary shows which stage is
+          eating the biggest share of your time. Scrambles are proper
+          random-state practice scrambles.
         </p>
         <button className="btn" onClick={dismissIntro} autoFocus>
           Got it — start practicing

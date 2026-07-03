@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth.tsx";
 import { Onboarding } from "./Onboarding.tsx";
+import { Mark } from "./Mark.tsx";
 
 /**
  * Everything behind "Launch App". Until a signed-in user with a profile
@@ -26,25 +27,7 @@ export function AppShell() {
         <header className="nav">
           <nav className="nav__inner container">
             <NavLink to="/" className="nav__wordmark">
-              <svg
-                className="nav__mark"
-                width="15"
-                height="15"
-                viewBox="0 0 32 32"
-                aria-hidden="true"
-              >
-                <g fill="currentColor">
-                  <rect x="2" y="2" width="8" height="8" rx="2" />
-                  <rect x="12" y="2" width="8" height="8" rx="2" />
-                  <rect x="22" y="2" width="8" height="8" rx="2" />
-                  <rect x="2" y="12" width="8" height="8" rx="2" />
-                  <rect x="12" y="12" width="8" height="8" rx="2" />
-                  <rect x="22" y="12" width="8" height="8" rx="2" />
-                  <rect x="2" y="22" width="8" height="8" rx="2" />
-                  <rect x="12" y="22" width="8" height="8" rx="2" />
-                  <rect x="22" y="22" width="8" height="8" rx="2" />
-                </g>
-              </svg>
+              <Mark className="nav__mark" size={15} />
               Cube Bench
             </NavLink>
           </nav>
@@ -61,25 +44,7 @@ export function AppShell() {
       <header className="nav">
         <nav className="nav__inner container">
           <NavLink to="/" className="nav__wordmark">
-            <svg
-              className="nav__mark"
-              width="15"
-              height="15"
-              viewBox="0 0 32 32"
-              aria-hidden="true"
-            >
-              <g fill="currentColor">
-                <rect x="2" y="2" width="8" height="8" rx="2" />
-                <rect x="12" y="2" width="8" height="8" rx="2" />
-                <rect x="22" y="2" width="8" height="8" rx="2" />
-                <rect x="2" y="12" width="8" height="8" rx="2" />
-                <rect x="12" y="12" width="8" height="8" rx="2" />
-                <rect x="22" y="12" width="8" height="8" rx="2" />
-                <rect x="2" y="22" width="8" height="8" rx="2" />
-                <rect x="12" y="22" width="8" height="8" rx="2" />
-                <rect x="22" y="22" width="8" height="8" rx="2" />
-              </g>
-            </svg>
+            <Mark className="nav__mark" size={15} />
             Cube Bench
           </NavLink>
           <div className="nav__links">
@@ -102,11 +67,10 @@ export function AppShell() {
             >
               Pricing
             </NavLink>
-            <button
-              className="nav__link nav__signout"
-              onClick={() => signOut()}
-              title={user.email}
-            >
+            <span className="nav__user tertiary" title={user.email}>
+              {user.profile.displayName ?? user.name}
+            </span>
+            <button className="nav__link nav__signout" onClick={() => signOut()}>
               Sign out
             </button>
           </div>

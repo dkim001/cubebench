@@ -7,6 +7,7 @@ import {
   type RoundScrambleSet,
 } from "../lib/api.ts";
 import { FEATURED_COMPS, FEATURED_COMP_IDS } from "../lib/featured.ts";
+import { isTouchDevice } from "../lib/pointer.ts";
 
 /**
  * Competition picker with visual free/Pro gating (no accounts in this
@@ -31,6 +32,7 @@ export function CompetitionPicker({
 
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState<Record<string, string>>({});
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const showingFeatured = query.trim() === "";
 
@@ -59,10 +61,14 @@ export function CompetitionPicker({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [query, showingFeatured]);
+  }, [query, showingFeatured, retryNonce]);
 
+  // Focus the search on desktop only — on phones autofocus throws the
+  // keyboard over the featured list, which is the intended first tap.
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => inputRef.current?.focus(), []);
+  useEffect(() => {
+    if (!isTouchDevice()) inputRef.current?.focus();
+  }, []);
 
   async function select(comp: Competition) {
     if (selectingId || unavailable[comp.id]) return;
@@ -121,16 +127,34 @@ export function CompetitionPicker({
       )}
 
       <div className="picker__list card">
-        {loading && (
-          <div className="picker__state">
-            <div className="spinner" />
+        {loading &&
+          // skeleton rows: the layout doesn't jump from empty box to list
+          [0, 1, 2].map((i) => (
+            <div className="skel-row" key={i} aria-hidden="true">
+              <span className="skel skel--name" />
+              <span className="skel skel--meta" />
+            </div>
+          ))}
+
+        {!loading && error && (
+          <div className="state-center picker__error">
+            <p className="muted">{error}</p>
+            <button
+              className="btn btn--secondary picker__retry"
+              onClick={() => setRetryNonce((n) => n + 1)}
+            >
+              Try again
+            </button>
           </div>
         )}
 
-        {!loading && error && <div className="picker__state muted">{error}</div>}
-
         {!loading && !error && !showingFeatured && rows.length === 0 && (
-          <div className="picker__state muted">No competitions found.</div>
+          <div className="state-center muted picker__empty">
+            <p>No competitions found.</p>
+            <p className="tertiary">
+              Try a name, city, or year — “Nationals 2023”.
+            </p>
+          </div>
         )}
 
         {!loading &&

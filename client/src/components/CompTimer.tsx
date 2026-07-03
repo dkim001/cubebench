@@ -274,11 +274,11 @@ export function CompTimer({
         <div className="solve__scramble mono">{scramble}</div>
       </div>
 
-      {phase === "idle" && (
-        <div className="solve__cube">
-          <CubeImage scramble={scramble} />
-        </div>
-      )}
+      {/* stays mounted and collapses smoothly — no layout lurch at the
+          exact moment the user needs stillness */}
+      <div className={`solve__cube${phase !== "idle" ? " is-collapsed" : ""}`}>
+        <CubeImage scramble={scramble} />
+      </div>
 
       <div
         className={`timer-zone timer-zone--${phase}`}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth.tsx";
 import { renderGoogleButton } from "../lib/google.ts";
+import { Mark } from "./Mark.tsx";
 
 /**
  * The gate in front of the app: two steps, no card. A bare column on the
@@ -50,25 +51,7 @@ export function Onboarding() {
 
   return (
     <div className="screen gate">
-      <svg
-        className="gate__mark gate__item"
-        width="28"
-        height="28"
-        viewBox="0 0 32 32"
-        aria-hidden="true"
-      >
-        <g fill="currentColor">
-          <rect x="2" y="2" width="8" height="8" rx="2" />
-          <rect x="12" y="2" width="8" height="8" rx="2" />
-          <rect x="22" y="2" width="8" height="8" rx="2" />
-          <rect x="2" y="12" width="8" height="8" rx="2" />
-          <rect x="12" y="12" width="8" height="8" rx="2" />
-          <rect x="22" y="12" width="8" height="8" rx="2" />
-          <rect x="2" y="22" width="8" height="8" rx="2" />
-          <rect x="12" y="22" width="8" height="8" rx="2" />
-          <rect x="22" y="22" width="8" height="8" rx="2" />
-        </g>
-      </svg>
+      <Mark className="gate__mark gate__item" size={28} />
 
       {/* keyed remount replays the staggered entrance for the new step */}
       <div className="gate__step" key={step}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { Mark } from "./Mark.tsx";
 
 /**
  * Marketing nav for the landing page: wordmark, section anchors, and a
@@ -20,26 +21,7 @@ export function NavBar() {
     <header className={`nav nav--marketing${scrolled ? " is-scrolled" : ""}`}>
       <nav className="nav__inner container">
         <NavLink to="/" className="nav__wordmark">
-          {/* the 3×3 brand mark — same one as the favicon */}
-          <svg
-            className="nav__mark"
-            width="15"
-            height="15"
-            viewBox="0 0 32 32"
-            aria-hidden="true"
-          >
-            <g fill="currentColor">
-              <rect x="2" y="2" width="8" height="8" rx="2" />
-              <rect x="12" y="2" width="8" height="8" rx="2" />
-              <rect x="22" y="2" width="8" height="8" rx="2" />
-              <rect x="2" y="12" width="8" height="8" rx="2" />
-              <rect x="12" y="12" width="8" height="8" rx="2" />
-              <rect x="22" y="12" width="8" height="8" rx="2" />
-              <rect x="2" y="22" width="8" height="8" rx="2" />
-              <rect x="12" y="22" width="8" height="8" rx="2" />
-              <rect x="22" y="22" width="8" height="8" rx="2" />
-            </g>
-          </svg>
+          <Mark className="nav__mark" size={15} />
           Cube Bench
         </NavLink>
         <div className="nav__links">
