@@ -1,9 +1,11 @@
 import express from "express";
 import cors from "cors";
+import { rateLimit } from "express-rate-limit";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TTL, withCache } from "./cache.ts";
+import { ROUND_TYPES } from "./roundTypes.ts";
 import {
   AuthError,
   destroySession,
@@ -26,6 +28,22 @@ const PORT = Number(process.env.PORT ?? 4000);
 
 app.use(cors());
 app.use(express.json());
+
+// ---- Rate limits: the unauthenticated write/search endpoints are the
+// abuse surface (each miss can also fan out to WCA). Per-IP, in-memory. ----
+
+const limit = (windowMs: number, max: number) =>
+  rateLimit({
+    windowMs,
+    limit: max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests — slow down a little.", status: 429 },
+  });
+
+const authLimiter = limit(10 * 60 * 1000, 30); // 30 / 10 min
+const captureLimiter = limit(10 * 60 * 1000, 10); // 10 / 10 min
+const searchLimiter = limit(60 * 1000, 60); // 60 / min
 
 // Wrap async handlers so rejections hit the error middleware instead of
 // hanging the request (no hidden failures).
@@ -97,6 +115,7 @@ app.get("/", (_req, res) => {
 // Searchable competition list.
 app.get(
   "/api/competitions",
+  searchLimiter,
   wrap(async (req, res) => {
     const q = typeof req.query.q === "string" ? req.query.q : "";
     const results = await withCache(`search:${q.toLowerCase()}`, TTL.SHORT_MS, () =>
@@ -130,6 +149,12 @@ app.get(
     const { id } = req.params;
     const roundTypeId =
       typeof req.query.roundTypeId === "string" ? req.query.roundTypeId : "1";
+    // Round codes are a small closed set; anything else is a bad request,
+    // not a fresh cache key + upstream fetch.
+    if (!(roundTypeId in ROUND_TYPES)) {
+      res.status(400).json({ error: `Unknown round type "${roundTypeId}".` });
+      return;
+    }
     const ttl = (await isFinished(id)) ? TTL.LONG_MS : TTL.SHORT_MS;
     const ranking = await withCache(`ranking:${id}:${roundTypeId}`, ttl, () =>
       getFirstRound333Ranking(id, roundTypeId),
@@ -152,6 +177,7 @@ app.get("/api/auth/config", (_req, res) => {
 
 app.post(
   "/api/auth/google",
+  authLimiter,
   wrap(async (req, res) => {
     const credential =
       typeof req.body?.credential === "string" ? req.body.credential : "";
@@ -166,6 +192,7 @@ app.post(
 
 app.post(
   "/api/auth/email",
+  authLimiter,
   wrap(async (req, res) => {
     const { user, token } = await signInWithEmail(
       typeof req.body?.email === "string" ? req.body.email : "",
@@ -249,6 +276,7 @@ async function loadKnownEmails(): Promise<Set<string>> {
 
 app.post(
   "/api/early-access",
+  captureLimiter,
   wrap(async (req, res) => {
     const email =
       typeof req.body?.email === "string"
@@ -280,8 +308,18 @@ app.use(
     res: express.Response,
     _next: express.NextFunction,
   ) => {
+    // Domain errors carry their own status; also honor 4xx from middleware
+    // (e.g. express.json parse failures are client errors, not our 5xx).
+    const middlewareStatus =
+      typeof (err as { status?: unknown })?.status === "number"
+        ? ((err as { status: number }).status as number)
+        : undefined;
     const status =
-      err instanceof WcaError || err instanceof AuthError ? err.status : 500;
+      err instanceof WcaError || err instanceof AuthError
+        ? err.status
+        : middlewareStatus && middlewareStatus >= 400 && middlewareStatus < 500
+          ? middlewareStatus
+          : 500;
     const message = err instanceof Error ? err.message : "Unexpected error";
     // Surface as a clean 4xx/5xx with actionable context; log server-side.
     console.error(`[error] ${status} ${message}`);

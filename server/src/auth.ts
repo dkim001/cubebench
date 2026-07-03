@@ -116,20 +116,32 @@ export async function updateProfile(
   return updated;
 }
 
-// ---------- sessions (in-memory) ----------
+// ---------- sessions (in-memory, TTL'd and bounded) ----------
 
-const sessions = new Map<string, string>(); // token -> userId
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const MAX_SESSIONS = 10_000; // hard cap: oldest evicted first
+
+type Session = { userId: string; expiresAt: number };
+const sessions = new Map<string, Session>(); // token -> session
 
 export function createSession(userId: string): string {
+  if (sessions.size >= MAX_SESSIONS) {
+    const oldest = sessions.keys().next().value;
+    if (oldest !== undefined) sessions.delete(oldest);
+  }
   const token = randomBytes(32).toString("hex");
-  sessions.set(token, userId);
+  sessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
   return token;
 }
 
 export async function userForToken(token: string): Promise<User | undefined> {
-  const userId = sessions.get(token);
-  if (!userId) return undefined;
-  return (await loadUsers()).get(userId);
+  const session = sessions.get(token);
+  if (!session) return undefined;
+  if (session.expiresAt <= Date.now()) {
+    sessions.delete(token);
+    return undefined;
+  }
+  return (await loadUsers()).get(session.userId);
 }
 
 export function destroySession(token: string): void {
