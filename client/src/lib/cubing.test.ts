@@ -14,6 +14,7 @@ import {
   placeAverage,
   stageBreakdown,
   wcaAo5Cs,
+  wcaAo5FromAttempts,
   wcaAo5Ms,
   type Attempt,
   type Solve,
@@ -78,6 +79,39 @@ check("+2 that lands on the worst attempt is dropped like any worst", () => {
     { rawMs: 10000, plus2: false }, // best, dropped
   ];
   assert.equal(wcaAo5Cs(attempts.map(attemptCs)), 1200);
+});
+
+// --- DNF-aware Ao5 (WCA: one DNF = worst; two+ DNFs = DNF average) ---
+const t = (s: number, plus2 = false, dnf = false): Attempt => ({
+  rawMs: s * 1000,
+  plus2,
+  dnf,
+});
+check("no DNFs: same result as the cs pipeline", () => {
+  const attempts = [t(10), t(11), t(12), t(13), t(14)];
+  assert.equal(wcaAo5FromAttempts(attempts), 1200);
+});
+check("one DNF counts as the worst and is dropped", () => {
+  // real times 10,11,12,13 + DNF -> drop DNF (worst) and 10 (best) -> mean(11,12,13)
+  const attempts = [t(10), t(11), t(12, false, true), t(12), t(13)];
+  assert.equal(wcaAo5FromAttempts(attempts), 1200);
+});
+check("two DNFs make the average DNF (null)", () => {
+  const attempts = [t(10), t(11, false, true), t(12), t(13, false, true), t(9)];
+  assert.equal(wcaAo5FromAttempts(attempts), null);
+});
+check("a +2 on a kept attempt still applies with a DNF in the set", () => {
+  // DNF dropped as worst; times 10,11+2=13,12, drop best 10 -> mean(13,12, 13) wait:
+  // real: 10, 13(11+2), 12, 13 -> drop best 10 -> mean(13,12,13) = 12.67
+  const attempts = [t(10), t(11, true), t(12), t(13), t(14, false, true)];
+  assert.equal(wcaAo5FromAttempts(attempts), 1267);
+});
+check("DNF attempt displays as DNF", () => {
+  assert.equal(formatAttempt(t(12.34, false, true)), "DNF");
+  assert.equal(formatAttempt(t(12.34, true, true)), "DNF");
+});
+check("DNF-aware Ao5 rejects wrong count", () => {
+  assert.throws(() => wcaAo5FromAttempts([t(1), t(2)]));
 });
 
 // --- cs-domain Ao5 consistency (average agrees with displayed attempts) ---

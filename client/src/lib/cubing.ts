@@ -26,15 +26,17 @@ export type Solve = {
 };
 
 /**
- * One competition attempt. `plus2` is the WCA +2 penalty (here: started the
- * solve after the 15s inspection window). The penalty is part of the
- * attempt's official time: it is added BEFORE choosing best/worst and before
- * averaging, never after.
+ * One competition attempt. `plus2` is the WCA +2 penalty (from inspection
+ * overrun or marked manually). The penalty is part of the attempt's official
+ * time: it is added BEFORE choosing best/worst and before averaging, never
+ * after. `dnf` marks the attempt Did Not Finish (mis-tap, pop, wrong stop) —
+ * a DNF has no time.
  */
 export type Attempt = {
   /** stopwatch time in ms, penalty not included */
   rawMs: number;
   plus2: boolean;
+  dnf?: boolean;
 };
 
 /** The attempt's official time in ms: raw + 2.000s if penalized. */
@@ -55,10 +57,36 @@ export function attemptCs(a: Attempt): number {
 
 /**
  * WCA display convention: a penalized result shows the FINAL time with a
- * trailing "+" — a 12.34 solve with +2 renders "14.34+".
+ * trailing "+" — a 12.34 solve with +2 renders "14.34+". A DNF shows "DNF".
  */
 export function formatAttempt(a: Attempt): string {
+  if (a.dnf) return "DNF";
   return formatCentiseconds(attemptCs(a)) + (a.plus2 ? "+" : "");
+}
+
+/**
+ * WCA Ao5 over attempts, DNF-aware:
+ *   - a single DNF is the worst attempt (dropped),
+ *   - two or more DNFs make the average itself DNF (returns null),
+ *   - otherwise: quantize to cs, drop one best and one worst, mean the
+ *     middle three, round once.
+ */
+export function wcaAo5FromAttempts(attempts: Attempt[]): number | null {
+  if (attempts.length !== 5) {
+    throw new Error(`Ao5 needs exactly 5 attempts, got ${attempts.length}`);
+  }
+  const dnfCount = attempts.filter((a) => a.dnf).length;
+  if (dnfCount >= 2) return null;
+  const cs = attempts
+    .filter((a) => !a.dnf)
+    .map(attemptCs)
+    .sort((a, b) => a - b);
+  // one DNF: it IS the worst (already excluded) -> drop only the best of the
+  // four real times; zero DNFs: drop best and worst of five.
+  const middleThree = dnfCount === 1 ? cs.slice(1) : cs.slice(1, 4);
+  return Math.round(
+    middleThree.reduce((sum, t) => sum + t, 0) / middleThree.length,
+  );
 }
 
 /**

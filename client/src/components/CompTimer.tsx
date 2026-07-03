@@ -78,8 +78,9 @@ export function CompTimer({
     rafRef.current = null;
   };
 
-  // Full reset when the scramble/solve changes.
-  useEffect(() => {
+  const resetSolve = useCallback(() => {
+    clearHoldTimer();
+    stopRaf();
     setPhase("idle");
     setInspectionLeft(15);
     setOverInspection(false);
@@ -92,11 +93,16 @@ export function CompTimer({
     spaceIsDownRef.current = false;
     holdStartAtRef.current = null;
     holdSourceRef.current = null;
+  }, []);
+
+  // Full reset when the scramble/solve changes.
+  useEffect(() => {
+    resetSolve();
     return () => {
       clearHoldTimer();
       stopRaf();
     };
-  }, [solveIndex, scramble]);
+  }, [solveIndex, scramble, resetSolve]);
 
   // Inspection countdown ticker (also runs while holding/armed).
   useEffect(() => {
@@ -330,18 +336,58 @@ export function CompTimer({
                 here exactly as it will on the results screen */}
             <div className="timer__time mono">{formatAttempt(result)}</div>
             <div className="timer__hint">
-              {result.plus2
-                ? `Inspection ran past 15s — +2 included (stopwatch read ${formatMs(result.rawMs)})`
-                : "Solve complete"}
+              {result.dnf
+                ? "Marked as DNF — it won't count as a time"
+                : penaltyRef.current
+                  ? `Inspection ran past 15s — +2 included (stopwatch read ${formatMs(result.rawMs)})`
+                  : result.plus2
+                    ? `+2 applied (stopwatch read ${formatMs(result.rawMs)})`
+                    : "Solve complete"}
             </div>
           </div>
         )}
       </div>
 
       {phase === "done" && result && (
-        <button className="btn" onClick={() => onComplete(result)} autoFocus>
-          {isLast ? "See your ranking" : "Next solve"}
-        </button>
+        <div className="post">
+          <div className="post__marks">
+            <button
+              className="post__chip"
+              onClick={resetSolve}
+              title="Discard this attempt and solve the same scramble again"
+            >
+              Redo
+            </button>
+            <button
+              className={`post__chip post__chip--plus2${result.plus2 ? " is-on" : ""}`}
+              aria-pressed={result.plus2}
+              disabled={penaltyRef.current}
+              title={
+                penaltyRef.current
+                  ? "Automatic — inspection ran past 15 seconds"
+                  : "Mark a +2 penalty on this attempt"
+              }
+              onClick={() =>
+                setResult((r) => (r ? { ...r, plus2: !r.plus2 } : r))
+              }
+            >
+              +2
+            </button>
+            <button
+              className={`post__chip post__chip--dnf${result.dnf ? " is-on" : ""}`}
+              aria-pressed={Boolean(result.dnf)}
+              title="Mark this attempt as Did Not Finish"
+              onClick={() =>
+                setResult((r) => (r ? { ...r, dnf: !r.dnf } : r))
+              }
+            >
+              DNF
+            </button>
+          </div>
+          <button className="btn" onClick={() => onComplete(result)} autoFocus>
+            {isLast ? "See your ranking" : "Next solve"}
+          </button>
+        </div>
       )}
     </div>
   );
