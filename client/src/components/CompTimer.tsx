@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatMs, type Attempt } from "../lib/cubing.ts";
+import { formatAttempt, formatMs, type Attempt } from "../lib/cubing.ts";
 import { isTouchDevice } from "../lib/pointer.ts";
 import { CubeImage } from "./CubeImage.tsx";
 
@@ -54,6 +54,9 @@ export function CompTimer({
   const penaltyRef = useRef(false);
   /** when the current spacebar/touch hold began; null when not holding */
   const holdStartAtRef = useRef<number | null>(null);
+  /** which input started the hold — a pointer event may only cancel a
+   *  pointer hold, and a second source can't restart the arming clock */
+  const holdSourceRef = useRef<"key" | "pointer" | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number | null>(null);
   // Set when the running timer is stopped by a keydown, so the paired keyup
@@ -88,6 +91,7 @@ export function CompTimer({
     penaltyRef.current = false;
     spaceIsDownRef.current = false;
     holdStartAtRef.current = null;
+    holdSourceRef.current = null;
     return () => {
       clearHoldTimer();
       stopRaf();
@@ -123,7 +127,11 @@ export function CompTimer({
     setPhase("inspection");
   }, []);
 
-  const beginHold = useCallback(() => {
+  const beginHold = useCallback((source: "key" | "pointer") => {
+    // A hold is already in progress from another (or the same) source —
+    // ignore it rather than restarting the arming clock.
+    if (holdStartAtRef.current != null) return;
+    holdSourceRef.current = source;
     holdStartAtRef.current = performance.now();
     setHoldState("holding");
     // The timeout only drives the red->green visual. The actual decision is
@@ -135,13 +143,16 @@ export function CompTimer({
     }, HOLD_TO_ARM_MS);
   }, []);
 
-  const releaseHold = useCallback(() => {
+  const releaseHold = useCallback((source: "key" | "pointer") => {
+    // Only the input that started the hold may end it.
+    if (holdSourceRef.current !== source) return;
     clearHoldTimer();
     const heldFor =
       holdStartAtRef.current != null
         ? performance.now() - holdStartAtRef.current
         : 0;
     holdStartAtRef.current = null;
+    holdSourceRef.current = null;
     if (heldFor >= HOLD_TO_ARM_MS) {
       // Start the solve. Penalty decided at this exact moment.
       const now = performance.now();
@@ -195,13 +206,13 @@ export function CompTimer({
       if (e.repeat) return;
       spaceIsDownRef.current = true;
       if (p === "idle") beginInspection();
-      else if (p === "inspection") beginHold();
+      else if (p === "inspection") beginHold("key");
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code !== "Space" && e.key !== " ") return;
       if (!spaceIsDownRef.current) return; // stray keyup (e.g. after a stop)
       spaceIsDownRef.current = false;
-      if (phaseRef.current === "inspection") releaseHold();
+      if (phaseRef.current === "inspection") releaseHold("key");
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -216,21 +227,24 @@ export function CompTimer({
   const onZonePointerDown = useCallback(() => {
     const p = phaseRef.current;
     if (p === "running") stopSolve();
-    else if (p === "inspection") beginHold();
+    else if (p === "inspection") beginHold("pointer");
   }, [beginHold, stopSolve]);
 
   const onZonePointerUp = useCallback(() => {
     const p = phaseRef.current;
     if (p === "idle") beginInspection(); // tap-to-begin fires on release
-    else if (p === "inspection") releaseHold();
+    else if (p === "inspection") releaseHold("pointer");
   }, [beginInspection, releaseHold]);
 
-  // A hold that never completes (finger slides off, gesture canceled) must
-  // cancel cleanly back to inspection instead of sticking in holding/armed.
+  // A POINTER hold that never completes (finger slides off, gesture
+  // canceled) cancels cleanly back to inspection. A keyboard hold is not
+  // touched — a drifting cursor must never eat a spacebar start.
   const onZonePointerCancel = useCallback(() => {
     if (phaseRef.current !== "inspection") return;
+    if (holdSourceRef.current !== "pointer") return;
     clearHoldTimer();
     holdStartAtRef.current = null;
+    holdSourceRef.current = null;
     setHoldState("none");
   }, []);
 
@@ -312,10 +326,12 @@ export function CompTimer({
 
         {phase === "done" && result && (
           <div className="timer timer--done">
-            <div className="timer__time mono">{formatMs(result.rawMs)}</div>
+            {/* the headline is the OFFICIAL time — penalized shows "20.00+"
+                here exactly as it will on the results screen */}
+            <div className="timer__time mono">{formatAttempt(result)}</div>
             <div className="timer__hint">
               {result.plus2
-                ? `Started after 15s — +2 penalty, counts as ${formatMs(result.rawMs + 2000)}`
+                ? `Inspection ran past 15s — +2 included (stopwatch read ${formatMs(result.rawMs)})`
                 : "Solve complete"}
             </div>
           </div>
