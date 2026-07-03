@@ -1,0 +1,350 @@
+:root {
+  /* one restrained accent, warm paper ground, ink text */
+  --bg: #faf9f7;
+  --surface: #ffffff;
+  --text: #17171a;
+  --text-secondary: #5f5f66;
+  --text-tertiary: #7a7a83; /* keeps ~4.5:1 on the ground even at caption sizes */
+  --border: rgba(23, 23, 26, 0.08);
+  --border-strong: rgba(23, 23, 26, 0.16);
+  --accent: #2b4fd8;
+  --accent-hover: #2141bd;
+  --accent-soft: rgba(43, 79, 216, 0.09);
+  --good: #177a48;
+  --bad: #b3372f;
+
+  --shadow-sm: 0 1px 2px rgba(23, 23, 26, 0.04), 0 1px 3px rgba(23, 23, 26, 0.04);
+  --shadow-md: 0 4px 12px rgba(23, 23, 26, 0.05), 0 2px 4px rgba(23, 23, 26, 0.04);
+  --shadow-lg: 0 18px 48px rgba(23, 23, 26, 0.09), 0 6px 16px rgba(23, 23, 26, 0.05);
+
+  --radius: 14px;
+  --radius-lg: 20px;
+
+  /* one motion system: two speeds, one curve (Linear/Vercel's swift-out) */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --speed-ui: 0.16s;
+  --speed-reveal: 0.55s;
+
+  /* the single inverted band + accent legible on it */
+  --ink-band: #16181d;
+  --paper-on-ink: #f5f4f1;
+  --accent-on-ink: #a8b8ff;
+
+  /* General Sans carries text and headlines; Space Grotesk carries every
+     number in the product (timers, averages, scrambles) with tabular
+     figures so running times never jitter. */
+  --font: "General Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "Space Grotesk", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+/* ---------- layout ---------- */
+
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 24px 96px;
+}
+
+/* ---------- top navigation ---------- */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(250, 249, 247, 0.85);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav__inner {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap; /* ultra-narrow viewports: links drop to a second row */
+  gap: 8px 24px;
+  padding: 14px 24px;
+  max-width: 960px;
+}
+
+.nav__wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav__mark {
+  display: block;
+  color: var(--accent);
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* thumb-sized hit area; the bar absorbs the height */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .nav__inner {
+    padding: 8px 16px;
+    gap: 14px;
+  }
+  .nav__links {
+    gap: 16px;
+  }
+  .nav__link {
+    font-size: 13px;
+  }
+  .nav__wordmark {
+    font-size: 15px;
+  }
+  /* the wordmark alone is enough brand at phone width — keeps one nav row */
+  .nav__mark {
+    display: none;
+  }
+}
+
+.nav__link:hover {
+  color: var(--text);
+}
+
+.nav__link.is-active {
+  color: var(--accent);
+}
+
+.container {
+  width: 100%;
+  max-width: 720px;
+}
+
+/* landing showcase/grid rail — desktop-first, wider than prose */
+.container--wide {
+  width: 100%;
+  max-width: 1100px;
+}
+
+.screen {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- typography ---------- */
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.display {
+  font-size: 52px;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+
+.title {
+  font-size: 28px;
+  letter-spacing: -0.025em;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.lead {
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+
+.tertiary {
+  color: var(--text-tertiary);
+}
+
+/* ---------- surfaces ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------- buttons ---------- */
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: none;
+  border-radius: 980px;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  background: var(--accent);
+  color: #fff;
+  transition:
+    background var(--speed-ui) var(--ease-out),
+    transform var(--speed-ui) var(--ease-out),
+    box-shadow var(--speed-ui) var(--ease-out);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+  padding: 12px 18px;
+}
+
+.btn--ghost:hover {
+  background: var(--accent-soft);
+}
+
+.btn--secondary {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.btn--secondary:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ---------- inputs ---------- */
+
+.input {
+  width: 100%;
+  padding: 15px 18px;
+  font-size: 17px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* ---------- misc ---------- */
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* the whole page goes still for users who ask it to */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

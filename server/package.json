@@ -1,0 +1,17 @@
+{
+  "name": "cube-benchmark-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Express proxy for the WCA public API: scramble grouping, round sorting, ranking, caching.",
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/index.ts",
+    "start": "node --env-file-if-exists=.env src/index.ts",
+    "verify": "node src/verify.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "google-auth-library": "^10.9.0"
+  }
+}
