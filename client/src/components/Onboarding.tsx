@@ -55,7 +55,7 @@ export function Onboarding() {
         {step === "account" ? <Account /> : <Profile />}
       </div>
       <p className="gate__foot tertiary">
-        Free during beta. Your results stay yours.
+        Free to start. Your results stay yours.
       </p>
     </div>
   );
@@ -135,7 +135,7 @@ function Account() {
       <Item index={++i}>
         <p className="muted gate__sub">
           {signup
-            ? "Sign in once — your solves, averages, and progress stay yours."
+            ? "Two quick steps and you're solving."
             : "Sign in to pick up where you left off."}
         </p>
       </Item>
@@ -251,7 +251,7 @@ function Profile() {
       </Item>
       <Item index={++i}>
         <p className="muted gate__sub">
-          Roughly — it gives your results context. A guess is fine.
+          A rough guess is fine. It just gives your results some context.
         </p>
       </Item>
 

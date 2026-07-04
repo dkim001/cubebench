@@ -31,6 +31,9 @@ export function NavBar() {
           <a className="nav__link nav__anchor" href="#why">
             Why
           </a>
+          <a className="nav__link nav__anchor" href="#faq">
+            FAQ
+          </a>
           <Link className="btn nav__launch" to="/app">
             Launch App
           </Link>

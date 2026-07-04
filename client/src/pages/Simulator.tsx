@@ -295,7 +295,8 @@ function RoundChooser({
         <h2 className="title">Choose a round</h2>
         <p className="muted">
           {comp.name} ran {rounds.length} round{rounds.length === 1 ? "" : "s"} of
-          3×3. Solve any of them — later rounds are the field that advanced.
+          3×3. Solve any of them. Later rounds rank you against the field that
+          advanced.
         </p>
       </div>
 
@@ -361,7 +362,7 @@ function Qualified({
       </h1>
       <p className="lead qualified__lead gate__item" style={d(3)}>
         You qualified for the <strong>{roundName}</strong>. Only the fastest
-        advanced — now solve their scrambles and see if you'd hold your ground.
+        advanced. Solve their scrambles and see if you'd hold your ground.
       </p>
 
       <div className="qualified__actions gate__item" style={d(4)}>

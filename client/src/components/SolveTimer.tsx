@@ -137,12 +137,12 @@ export function SolveTimer({
           <div className="timer__hint" role="status" aria-live="polite">
             {phase === "ready" &&
               (touch
-                ? "Tap to start — tap again at the end of each stage"
-                : "Space (or tap) to start — again at the end of each stage")}
+                ? "Tap to start, then tap at the end of each stage"
+                : "Space (or tap) to start, then again at the end of each stage")}
             {phase === "running" &&
               activeStageIdx >= 0 &&
               activeStageIdx < STAGE_ORDER.length &&
-              `Timing ${STAGE_LABEL[STAGE_ORDER[activeStageIdx]]} — ${touch ? "tap" : "space"} at end of ${STAGE_LABEL[STAGE_ORDER[activeStageIdx]]}`}
+              `Timing ${STAGE_LABEL[STAGE_ORDER[activeStageIdx]]}. ${touch ? "Tap" : "Space"} at the end of ${STAGE_LABEL[STAGE_ORDER[activeStageIdx]]}.`}
             {phase === "done" && "Solve complete"}
           </div>
         </div>
@@ -159,7 +159,7 @@ export function SolveTimer({
             >
               <span className="stage-chip__label">{STAGE_LABEL[key]}</span>
               <span className="stage-chip__value mono">
-                {done ? formatMs(completed[i]) : "—"}
+                {done ? formatMs(completed[i]) : "–"}
               </span>
             </div>
           );

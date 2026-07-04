@@ -108,8 +108,8 @@ export function CompetitionPicker({
         <span className="eyebrow">Step 1</span>
         <h2 className="title">Pick a competition</h2>
         <p className="muted">
-          Search by name, city, or year. You'll solve the first round of the 3×3
-          event.
+          Search by name, city, or year, then pick any 3×3 round the
+          competition ran.
         </p>
       </div>
 
@@ -124,7 +124,7 @@ export function CompetitionPicker({
 
       {showingFeatured && (
         <p className="picker__plan-note tertiary">
-          Featured competitions — free. The full library of past WCA
+          Featured competitions are free. The full library of past WCA
           competitions comes with Pro.
         </p>
       )}
@@ -155,7 +155,7 @@ export function CompetitionPicker({
           <div className="state-center muted picker__empty">
             <p>No competitions found.</p>
             <p className="tertiary">
-              Try a name, city, or year — “Nationals 2023”.
+              Try a name, city, or year, like “Nationals 2023”.
             </p>
           </div>
         )}
@@ -173,7 +173,7 @@ export function CompetitionPicker({
                 onClick={() => select(comp)}
                 disabled={!!note || !!selectingId}
                 aria-label={
-                  locked ? `${comp.name} — included with Pro` : comp.name
+                  locked ? `${comp.name}, included with Pro` : comp.name
                 }
               >
                 <span className="comp-row__main">
@@ -191,7 +191,12 @@ export function CompetitionPicker({
                     <span className="comp-row__pro">Pro</span>
                   )}
                   {!busy && !note && !locked && (
-                    <span className="comp-row__chev">›</span>
+                    <>
+                      {FEATURED_COMP_IDS.has(comp.id) && !isPro && (
+                        <span className="comp-row__free">Free</span>
+                      )}
+                      <span className="comp-row__chev">›</span>
+                    </>
                   )}
                 </span>
               </button>

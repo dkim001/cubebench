@@ -292,8 +292,8 @@ export function CompTimer({
             <div className="timer__time mono">0.00</div>
             <div className="timer__hint" role="status" aria-live="polite">
               {touch
-                ? "Tap to start inspection — you get 15 seconds, like a real round"
-                : "Press space to start inspection — you get 15 seconds, like a real round"}
+                ? "Tap to start inspection. You get 15 seconds, like a real round."
+                : "Press space to start inspection. You get 15 seconds, like a real round."}
             </div>
           </div>
         )}
@@ -315,8 +315,8 @@ export function CompTimer({
                 : holdState === "holding"
                   ? "Keep holding…"
                   : overInspection
-                    ? `Over 15s — this solve is +2. ${touch ? "Press and hold" : "Hold space"}, release to start.`
-                    : `Inspecting — ${touch ? "press and hold" : "hold space"}, then release to start`}
+                    ? `Over 15 seconds, so this solve is +2. ${touch ? "Press and hold" : "Hold space"}, release to start.`
+                    : `Inspecting. ${touch ? "Press and hold" : "Hold space"}, then release to start.`}
             </div>
           </div>
         )}
@@ -337,9 +337,9 @@ export function CompTimer({
             <div className="timer__time mono">{formatAttempt(result)}</div>
             <div className="timer__hint" role="status" aria-live="polite">
               {result.dnf
-                ? "Marked as DNF — it won't count as a time"
+                ? "Marked as DNF, so it won't count as a time"
                 : penaltyRef.current
-                  ? `Inspection ran past 15s — +2 included (stopwatch read ${formatMs(result.rawMs)})`
+                  ? `Inspection ran past 15 seconds. +2 included (stopwatch read ${formatMs(result.rawMs)})`
                   : result.plus2
                     ? `+2 applied (stopwatch read ${formatMs(result.rawMs)})`
                     : "Solve complete"}
@@ -364,7 +364,7 @@ export function CompTimer({
               disabled={penaltyRef.current}
               title={
                 penaltyRef.current
-                  ? "Automatic — inspection ran past 15 seconds"
+                  ? "Automatic: inspection ran past 15 seconds"
                   : "Mark a +2 penalty on this attempt"
               }
               onClick={() =>

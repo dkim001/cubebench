@@ -1,32 +1,35 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Reveal } from "../components/Reveal.tsx";
+import { Mark } from "../components/Mark.tsx";
 
 /**
- * Marketing landing page, desktop-first. The motion system is one vocabulary
- * used everywhere (Linear/Attio's): rise + blur-to-sharp, once-only, swift-out
- * easing. The hero is a scripted sequence (masked word-rise headline, then
- * sub → CTAs → meta → showcase landing), the showcase flattens from a slight
- * tilt as you scroll, and one inverted ink band carries the mission.
+ * Marketing landing page, desktop-first. One motion vocabulary (rise +
+ * blur-to-sharp, once-only, swift-out easing), a scripted hero, a scroll-
+ * settled showcase, one inverted ink band. The serif display face carries
+ * the editorial headlines; General Sans stays on UI and body.
  *
- * All numbers shown are real, verified against the WCA API. The marquee lists
- * real championships.
+ * All numbers shown are real, verified against the WCA API. The marquee and
+ * the stats band reference real championships.
  */
 
 /** Headline words rise out of an overflow mask, 90ms apart. */
 function MaskedWords({
   text,
   startDelay = 0,
+  italicIndex = -1,
 }: {
   text: string;
   startDelay?: number;
+  /** index of a word to set in the serif italic (the human gesture) */
+  italicIndex?: number;
 }) {
   return (
     <>
       {text.split(" ").map((word, i) => (
         <span className="mask-word" key={`${word}-${i}`}>
           <span
-            className="mask-word__inner"
+            className={`mask-word__inner${i === italicIndex ? " is-italic" : ""}`}
             style={{ animationDelay: `${startDelay + i * 0.09}s` }}
           >
             {word}
@@ -46,6 +49,29 @@ const MARQUEE_COMPS = [
   "World Championship 2013 · Las Vegas",
   "World Championship 2011 · Bangkok",
   "…and thousands more in the archive",
+];
+
+const FAQ = [
+  {
+    q: "Is the scoring really WCA-accurate?",
+    a: "Yes. Averages drop your single best and worst solve and take the mean of the middle three, quantized to centiseconds the way official results are. Late inspection costs a +2, and DNFs follow the official rules: one counts as your worst solve, two make the whole average a DNF.",
+  },
+  {
+    q: "Where do the scrambles and results come from?",
+    a: "From the WCA's public API. You solve the exact scrambles a round used, and your average is placed against that round's official results. Cube Bench isn't affiliated with the WCA; it builds on the data they publish.",
+  },
+  {
+    q: "Do I need an account?",
+    a: "Yes, and it's free. Your account holds your speed profile and, if you upgrade, your Pro plan. Sign up with an email and password, or with Google.",
+  },
+  {
+    q: "What does Pro add?",
+    a: "The full library of past WCA competitions, plus skill analytics that follow your stage splits across sessions. It's $3 a month with the first month free, and you can cancel anytime.",
+  },
+  {
+    q: "What happens if I mis-tap mid-solve?",
+    a: "After every solve you can redo it on the same scramble, mark a +2, or flag it as a DNF before it counts. Leaving a round pauses it, and you can resume from the competition list.",
+  },
 ];
 
 export default function Home() {
@@ -99,7 +125,11 @@ export default function Home() {
             <MaskedWords text="Find out where" startDelay={0.12} />
           </span>
           <span className="hero__line">
-            <MaskedWords text="you'd actually place." startDelay={0.39} />
+            <MaskedWords
+              text="you'd actually place."
+              startDelay={0.39}
+              italicIndex={1}
+            />
           </span>
         </h1>
         <p className="lead hero__lead hero__fade" style={{ animationDelay: "0.62s" }}>
@@ -204,14 +234,14 @@ export default function Home() {
         {[
           [
             "The exact scrambles",
-            "The five from round one, straight from the WCA archive.",
+            "The five a round actually used, straight from the WCA archive.",
           ],
           [
             "The real field",
             "Ranked against every competitor who showed up that day.",
           ],
           [
-            "Exact WCA scoring",
+            "Scored the WCA way",
             "Ao5 with best and worst dropped, penalties included.",
           ],
         ].map(([title, body], i) => (
@@ -228,7 +258,7 @@ export default function Home() {
       <section className="how container--wide" id="how">
         <Reveal>
           <span className="eyebrow">How it works</span>
-          <h2 className="title how__title h-ink">Three steps to a real answer.</h2>
+          <h2 className="how__title h-ink">Three steps to a real answer.</h2>
         </Reveal>
         <div className="how__grid">
           <Reveal delay={0}>
@@ -251,8 +281,8 @@ export default function Home() {
               </div>
               <h3 className="how__step-title">Pick a real competition</h3>
               <p className="muted how__step-body">
-                Any featured past WCA competition, with its first-round 3×3
-                exactly as it ran.
+                Any competition in the library, first round through the final.
+                Three featured championships are free.
               </p>
             </div>
           </Reveal>
@@ -266,12 +296,12 @@ export default function Home() {
                 <span className="how__scramble mono">
                   R' B2 L D' F' D' B L2 D F2 R U2
                 </span>
-                <span className="how__digits mono">9.87</span>
+                <span className="how__digits mono">10.42</span>
               </div>
               <h3 className="how__step-title">Solve the same five scrambles</h3>
               <p className="muted how__step-body">
-                Hold-to-start timer, 15 seconds of WCA inspection, +2 if you're
-                late — like the real round.
+                Hold-to-start timer, 15 seconds of WCA inspection, and a +2 if
+                you start late. Just like the real round.
               </p>
             </div>
           </Reveal>
@@ -292,12 +322,45 @@ export default function Home() {
               </div>
               <h3 className="how__step-title">See where you'd have placed</h3>
               <p className="muted how__step-body">
-                Your Ao5 next to the official results — the winner that day
+                Your Ao5 sits in the official standings. The winner that day
                 averaged 5.88.
               </p>
             </div>
           </Reveal>
         </div>
+      </section>
+
+      {/* ---------- the timer itself ---------- */}
+      <section className="timerband container--wide">
+        <Reveal delay={120}>
+          <div className="card timerband__demo" aria-label="The competition timer">
+            <span className="eyebrow">Solve 3 of 5</span>
+            <span className="timerband__scramble mono">
+              D2 R' F2 U2 R2 B U' L B2 D' F R2 U F2 D2 B2 U' L2 D R2
+            </span>
+            <span className="timerband__digits mono">11.32</span>
+            <span className="tertiary timerband__hint">Any key to stop</span>
+          </div>
+        </Reveal>
+        <Reveal>
+          <div className="timerband__copy">
+            <span className="eyebrow">The timer</span>
+            <h2 className="h-ink">Conventions cubers already know.</h2>
+            <p className="muted timerband__body">
+              Hold space until it arms, release to start, and any key stops.
+              Fifteen seconds of WCA inspection runs before every solve, and a
+              late start costs the same +2 it would on the day.
+            </p>
+            <p className="muted timerband__body">
+              Mis-taps aren't fatal either. Every solve can be redone, marked
+              +2, or flagged DNF before it counts, and leaving a round pauses
+              it for later.
+            </p>
+            <Link className="btn btn--ghost timerband__cta" to="/app">
+              Try a solve <span className="arrow">→</span>
+            </Link>
+          </div>
+        </Reveal>
       </section>
 
       {/* ---------- why vs a regular timer ---------- */}
@@ -308,7 +371,7 @@ export default function Home() {
               <span className="why__label">A regular timer</span>
               <p className="muted">
                 Records your times, draws a graph, and leaves the real question
-                open — would that average survive an actual round?
+                open: would that average survive an actual round?
               </p>
             </div>
             <div className="why__divider" aria-hidden="true" />
@@ -316,11 +379,38 @@ export default function Home() {
               <span className="why__label why__label--accent">Cube Bench</span>
               <p className="muted">
                 Puts your average of 5 next to the official results of a real
-                WCA first round — on the exact scrambles those competitors
-                solved, scored the exact way the round was scored.
+                WCA round, on the exact scrambles those competitors solved,
+                scored the way the round was scored.
               </p>
             </div>
           </div>
+        </Reveal>
+      </section>
+
+      {/* ---------- one real round, by the numbers ---------- */}
+      <section className="numbers container--wide">
+        <Reveal>
+          <span className="eyebrow">By the numbers</span>
+          <h2 className="h-ink numbers__title">One real round.</h2>
+        </Reveal>
+        <div className="numbers__grid">
+          {[
+            ["807", "competitors in the field you're ranked against"],
+            ["382", "made the cut for the second round"],
+            ["5.88", "the winning average, in seconds"],
+          ].map(([num, cap], i) => (
+            <Reveal key={num} delay={i * 100}>
+              <div className="numbers__item">
+                <span className="numbers__num mono">{num}</span>
+                <span className="numbers__cap muted">{cap}</span>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <Reveal delay={280}>
+          <p className="tertiary numbers__src">
+            First round of 3×3 at the WCA World Championship 2019, Melbourne.
+          </p>
         </Reveal>
       </section>
 
@@ -329,11 +419,11 @@ export default function Home() {
         <Reveal>
           <div className="skillband__copy">
             <span className="eyebrow">Also inside</span>
-            <h2 className="title h-ink">Skill Timer</h2>
+            <h2 className="h-ink">Skill Timer</h2>
             <p className="muted skillband__body">
               Practice with stage splits: one tap at the end of Cross, F2L,
               OLL, and PLL. Session by session, see exactly which stage is
-              eating your time — and whether the work is paying off.
+              eating your time, and whether the work is paying off.
             </p>
             <Link className="btn btn--secondary" to="/app/skill-timer">
               Open Skill Timer
@@ -349,11 +439,34 @@ export default function Home() {
               </span>
             </div>
             <p className="tertiary skillband__note">
-              Nearly half this session went to F2L — that's the practice
-              priority, not more OLL drilling.
+              Nearly half this session went to F2L. That's where practice pays
+              off first.
             </p>
           </div>
         </Reveal>
+      </section>
+
+      {/* ---------- FAQ ---------- */}
+      <section className="faq container" id="faq">
+        <Reveal>
+          <span className="eyebrow">FAQ</span>
+          <h2 className="h-ink faq__title">Fair questions.</h2>
+        </Reveal>
+        <div className="faq__list">
+          {FAQ.map((item, i) => (
+            <Reveal key={item.q} delay={i * 60}>
+              <details className="faq__item">
+                <summary className="faq__q">
+                  {item.q}
+                  <span className="faq__toggle" aria-hidden="true">
+                    +
+                  </span>
+                </summary>
+                <p className="muted faq__a">{item.a}</p>
+              </details>
+            </Reveal>
+          ))}
+        </div>
       </section>
 
       {/* ---------- inverted ink band: the mission ---------- */}
@@ -363,13 +476,11 @@ export default function Home() {
             <span className="eyebrow claim__eyebrow">Why we built this</span>
             <h2 className="claim__title">Make it measurable.</h2>
             <p className="claim__body">
-              Cube timer websites haven't changed in years, and they don't
-              actually measure your performance. Anyone practicing at home
-              should be able to answer a simple question: am I ready to join a
-              competition? Cubers should be able to answer it with actual data
-              instead of guessing. The whole point of Cube Bench is to make the
-              gap between your room and the competition feel measurable, so
-              joining a competition feels like a plan, not a gamble.
+              Cube timer websites haven't changed in years, and none of them
+              answer the question everyone practicing at home has: am I ready
+              for a real competition? Cube Bench turns that into a measurement.
+              Solve a real round, see where you'd have landed, and sign up for
+              your first competition because the numbers say you're ready.
             </p>
             <Link className="btn claim__cta" to="/app">
               Launch App
@@ -380,26 +491,41 @@ export default function Home() {
 
       {/* ---------- footer ---------- */}
       <footer className="footer">
-        <div className="container footer__inner">
+        <div className="container--wide footer__inner">
           <div className="footer__brand">
-            <span className="footer__wordmark">Cube Bench</span>
+            <span className="footer__wordmark">
+              <Mark size={14} className="footer__mark" /> Cube Bench
+            </span>
             <span className="tertiary footer__tag">
               The competition benchmark for speedcubers.
             </span>
           </div>
-          <div className="footer__links">
-            <a className="footer__link" href="#how">
-              How it works
-            </a>
-            <Link className="footer__link" to="/app/pricing">
-              Pricing
-            </Link>
+          <div className="footer__col">
+            <span className="footer__head">Product</span>
             <Link className="footer__link" to="/app">
               Launch App
             </Link>
+            <Link className="footer__link" to="/app/skill-timer">
+              Skill Timer
+            </Link>
+            <Link className="footer__link" to="/app/pricing">
+              Pricing
+            </Link>
+          </div>
+          <div className="footer__col">
+            <span className="footer__head">Learn</span>
+            <a className="footer__link" href="#how">
+              How it works
+            </a>
+            <a className="footer__link" href="#why">
+              Why Cube Bench
+            </a>
+            <a className="footer__link" href="#faq">
+              FAQ
+            </a>
           </div>
         </div>
-        <div className="container footer__legal tertiary">
+        <div className="container--wide footer__legal tertiary">
           Built on the WCA's public API. Not affiliated with the World Cube
           Association. © 2026 Cube Bench.
         </div>

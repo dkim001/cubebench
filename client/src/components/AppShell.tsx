@@ -39,9 +39,17 @@ export function AppShell() {
     );
   }
 
+  const shownName = user.profile.displayName ?? user.name;
+  const initials = shownName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+
   return (
     <>
-      <header className="nav">
+      <header className="nav nav--app">
         <nav className="nav__inner container">
           <NavLink to="/" className="nav__wordmark">
             <Mark className="nav__mark" size={15} />
@@ -67,8 +75,12 @@ export function AppShell() {
             >
               Pricing
             </NavLink>
-            <span className="nav__user tertiary" title={user.email}>
-              {user.profile.displayName ?? user.name}
+            <span className="nav__user-chip" title={user.email}>
+              <span className="nav__avatar" aria-hidden="true">
+                {initials || "?"}
+              </span>
+              <span className="nav__username tertiary">{shownName}</span>
+              {user.pro && <span className="nav__pro">Pro</span>}
             </span>
             <button className="nav__link nav__signout" onClick={() => signOut()}>
               Sign out

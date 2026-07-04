@@ -4,7 +4,7 @@
   --surface: #ffffff;
   --text: #17171a;
   --text-secondary: #5f5f66;
-  --text-tertiary: #7a7a83; /* keeps ~4.5:1 on the ground even at caption sizes */
+  --text-tertiary: #6e6e76; /* ~4.8:1 on the paper ground, AA at caption sizes */
   --border: rgba(23, 23, 26, 0.08);
   --border-strong: rgba(23, 23, 26, 0.16);
   --accent: #2b4fd8;
@@ -30,12 +30,14 @@
   --paper-on-ink: #f5f4f1;
   --accent-on-ink: #a8b8ff;
 
-  /* General Sans carries text and headlines; Space Grotesk carries every
-     number in the product (timers, averages, scrambles) with tabular
-     figures so running times never jitter. */
+  /* General Sans carries UI and body; Space Grotesk carries every number in
+     the product (timers, averages, scrambles) with tabular figures so
+     running times never jitter; Instrument Serif is the display voice for
+     the big editorial headlines only. */
   --font: "General Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "Space Grotesk", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-display: "Instrument Serif", "Times New Roman", Georgia, serif;
 }
 
 * {
@@ -62,6 +64,9 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   line-height: 1.5;
+  /* full-bleed bands use 100vw, which includes the scrollbar gutter on
+     classic-scrollbar platforms; clip instead of scrolling sideways */
+  overflow-x: clip;
 }
 
 /* ---------- layout ---------- */
@@ -197,11 +202,13 @@ h3 {
   font-weight: 600;
 }
 
+/* the display voice: a serif, regular weight, near-natural tracking */
 .display {
-  font-size: 52px;
+  font-family: var(--font-display);
+  font-size: 56px;
   line-height: 1.04;
-  letter-spacing: -0.035em;
-  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-weight: 400;
 }
 
 .title {

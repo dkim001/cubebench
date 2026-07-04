@@ -84,9 +84,9 @@ export default function SkillTimer() {
         <span className="eyebrow">Skill Timer</span>
         <h1 className="title">Find out where your solve is slow.</h1>
         <p className="muted gate__sub">
-          The Skill Timer times each part of your solve, not just the total.
-          One tap of the spacebar at the end of each stage splits your solve
-          into its four phases:
+          The Skill Timer times every stage of your solve separately. One tap
+          of the spacebar at the end of each stage splits your solve into its
+          four phases:
         </p>
         <ol className="stage-list">
           {(
@@ -94,7 +94,7 @@ export default function SkillTimer() {
               ["1", "Cross", "your first four edges"],
               ["2", "F2L", "first two layers"],
               ["3", "OLL", "orienting the last layer"],
-              ["4", "PLL", "permuting the last layer — solve done"],
+              ["4", "PLL", "permuting the last layer, and the solve is done"],
             ] as const
           ).map(([n, name, desc]) => (
             <li className="stage-list__row" key={n}>
@@ -107,12 +107,12 @@ export default function SkillTimer() {
           ))}
         </ol>
         <p className="muted gate__sub">
-          Solve as much as you like — the session summary shows which stage is
-          eating the biggest share of your time. Scrambles are proper
-          random-state practice scrambles.
+          Solve as much as you like. The session summary shows which stage is
+          eating the biggest share of your time. Scrambles are random-state,
+          the same kind you'd get in an official round.
         </p>
         <button className="btn" onClick={dismissIntro} autoFocus>
-          Got it — start practicing
+          Got it, start practicing
         </button>
       </div>
     );

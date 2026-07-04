@@ -29,9 +29,9 @@ function levelContext(avgCs: number, bucket?: string): string | null {
   const range = LEVEL_RANGES[bucket];
   if (!range) return null;
   if (avgCs < range.lo)
-    return `faster than the ${bucket}s you told us — time to update your level`;
+    return `faster than the ${bucket}s you told us, so it may be time to update your level`;
   if (avgCs < range.hi) return `right in your ${bucket}s range`;
-  return `above your ${bucket}s estimate — competition nerves are real, even simulated`;
+  return `above your ${bucket}s estimate, and that's normal: competition nerves are real, even in a simulation`;
 }
 
 /** Staggered entrance child (fade-up is the product's one reveal). */
@@ -183,7 +183,7 @@ export function Results({
           <div className="results__avg mono avg-rise">{avgText}</div>
         </div>
         <p className="muted results__avg-label">
-          {avgCs === null ? "WCA average of 5 — DNF" : "WCA average of 5"}
+          {avgCs === null ? "WCA average of 5: DNF" : "WCA average of 5"}
         </p>
       </Rise>
 
@@ -191,9 +191,9 @@ export function Results({
         <div className="card results__rank">
           {avgCs === null && (
             <p className="results__rank-line">
-              Two or more DNFs make the average itself a DNF — in an official
-              round this wouldn't place. Solve the round again and keep it
-              clean.
+              Two or more DNFs make the average itself a DNF, and in an
+              official round that wouldn't place. Solve the round again and
+              keep it clean.
             </p>
           )}
           {avgCs !== null && !ranking && !rankError && (
@@ -284,7 +284,7 @@ export function Results({
           <div className="card cut cut--final">
             <span className="cut__badge">The final</span>
             <p className="cut__line">
-              This was the last round — your {ordinal(ranking.placement)} of{" "}
+              This was the last round, so your {ordinal(ranking.placement)} of{" "}
               {ranking.total} would have been your finishing position.
             </p>
           </div>
@@ -369,7 +369,7 @@ export function Results({
 
       <Rise index={5}>
         <p className="tertiary results__drop-note">
-          Best and worst are dropped — the average is the mean of the middle
+          Best and worst are dropped. The average is the mean of the middle
           three.
           {attempts.some((a) => a.plus2 && !a.dnf) &&
             " A “+” marks a +2 penalty."}

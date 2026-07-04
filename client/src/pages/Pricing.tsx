@@ -18,10 +18,10 @@ export default function Pricing() {
     const upgrade = params.get("upgrade");
     if (!upgrade) return;
     if (upgrade === "success") {
-      setNotice("You're on Pro — welcome in. Your first month is free.");
+      setNotice("You're on Pro. Your first month is free.");
       refresh();
     } else if (upgrade === "cancelled") {
-      setNotice("No worries — checkout cancelled, nothing was charged.");
+      setNotice("No worries. Checkout was cancelled and nothing was charged.");
     }
     params.delete("upgrade");
     setParams(params, { replace: true });
@@ -32,7 +32,7 @@ export default function Pricing() {
     <div className="screen container pricing">
       <div className="pricing__head">
         <span className="eyebrow">Pricing</span>
-        <h1 className="title">Practice free. Benchmark deeper with Pro.</h1>
+        <h1 className="title">Practice free. Benchmark any competition with Pro.</h1>
       </div>
 
       {notice && <div className="card pricing__notice">{notice}</div>}
@@ -44,7 +44,7 @@ export default function Pricing() {
             <span className="plan__amount mono">$0</span>
           </p>
           <ul className="plan__features">
-            <li>Three featured competitions in the Simulator</li>
+            <li>Three featured competitions to simulate</li>
             <li>Full Skill Timer, single sessions</li>
             <li>Real scrambles, real fields, exact WCA scoring</li>
           </ul>
@@ -63,7 +63,7 @@ export default function Pricing() {
           </p>
           <ul className="plan__features">
             <li>The entire library of past WCA competitions</li>
-            <li>Skill analytics over time — progress across sessions</li>
+            <li>Skill analytics that follow your progress across sessions</li>
             <li>Everything in Free</li>
           </ul>
           <ProAction
@@ -77,9 +77,37 @@ export default function Pricing() {
 
       <p className="pricing__note tertiary">
         {billingAvailable
-          ? "Cancel anytime. Your first month is free — you won't be charged until it ends."
+          ? "Cancel anytime. Your first month is free, and you won't be charged until it ends."
           : "Pro is launching soon. No payment is taken now."}
       </p>
+
+      <div className="faq pricing__faq">
+        <span className="eyebrow pricing__faq-head">Questions</span>
+        {[
+          {
+            q: "Can I cancel whenever I want?",
+            a: "Yes. Manage or cancel from the billing portal at any time. If you cancel, Pro stays active until the end of the period you've already paid for.",
+          },
+          {
+            q: "What happens after the free month?",
+            a: "The subscription renews at $3 a month. Cancel during the trial and you pay nothing at all.",
+          },
+          {
+            q: "Is my card information safe?",
+            a: "Checkout is hosted by Stripe, so your card details go to Stripe and never touch our servers.",
+          },
+        ].map((item) => (
+          <details className="faq__item" key={item.q}>
+            <summary className="faq__q">
+              {item.q}
+              <span className="faq__toggle" aria-hidden="true">
+                +
+              </span>
+            </summary>
+            <p className="muted faq__a">{item.a}</p>
+          </details>
+        ))}
+      </div>
     </div>
   );
 }
@@ -169,7 +197,7 @@ function EarlyAccess() {
   if (state === "done") {
     return (
       <p className="plan__done">
-        You're on the list — we'll email you when Pro launches.
+        You're on the list. We'll email you when Pro launches.
       </p>
     );
   }
