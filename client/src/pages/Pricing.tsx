@@ -75,20 +75,20 @@ export default function Pricing() {
               aria-pressed={plan === "annual"}
             >
               Yearly
-              <span className="plan__save">Save 39%</span>
+              <span className="plan__save">Save 40%</span>
             </button>
           </div>
 
           <p className="plan__price">
             {plan === "monthly" ? (
               <>
-                <span className="plan__amount mono">$2.99</span>
+                <span className="plan__amount mono">$3.49</span>
                 <span className="plan__per">/month</span>
               </>
             ) : (
               <>
-                <span className="plan__amount mono">$21.81</span>
-                <span className="plan__per">/year · $1.82/mo, billed yearly</span>
+                <span className="plan__amount mono">$25</span>
+                <span className="plan__per">/year · $2.08/mo, billed yearly</span>
               </>
             )}
           </p>
@@ -109,7 +109,7 @@ export default function Pricing() {
 
       <p className="pricing__note tertiary">
         {billingAvailable
-          ? "Cancel anytime. Your free trial won't be charged until it ends, and yearly saves 39% over paying monthly."
+          ? "Cancel anytime. Your free trial won't be charged until it ends, and yearly saves 40% over paying monthly."
           : "Pro is launching soon. No payment is taken now."}
       </p>
 
@@ -122,7 +122,7 @@ export default function Pricing() {
           },
           {
             q: "What happens after the free trial?",
-            a: "The subscription renews at $2.99 a month, or $21.81 a year if you pick yearly (a 39% saving). Cancel during the trial and you pay nothing at all.",
+            a: "The subscription renews at $3.49 a month, or $25 a year if you pick yearly (a 40% saving). Cancel during the trial and you pay nothing at all.",
           },
           {
             q: "Is my card information safe?",
