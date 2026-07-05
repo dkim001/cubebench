@@ -418,7 +418,8 @@ const CLIENT_DIST = join(
   "client",
   "dist",
 );
-if (existsSync(CLIENT_DIST)) {
+// On Vercel the client is served by Vercel's CDN, not Express — skip this.
+if (!process.env.VERCEL && existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
   app.use((req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) return next();
@@ -458,6 +459,12 @@ app.use(
   },
 );
 
-app.listen(PORT, () => {
-  console.log(`cube-benchmark server listening on http://localhost:${PORT}`);
-});
+// On Vercel the app is exported as a serverless function (see /api/index.ts)
+// and must not open a port. Locally and on a normal host, we listen.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`cube-benchmark server listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
