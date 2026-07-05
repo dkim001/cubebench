@@ -43,7 +43,7 @@ type AuthState = {
   /** refresh the current user from the server (after returning from Stripe) */
   refresh: () => Promise<void>;
   /** redirect to Stripe Checkout for Pro */
-  startCheckout: () => Promise<void>;
+  startCheckout: (plan?: "monthly" | "annual") => Promise<void>;
   /** redirect to the Stripe Billing Portal to manage/cancel */
   openPortal: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -177,15 +177,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const startCheckout = useCallback(async () => {
-    const token = store.get(TOKEN_KEY) ?? "";
-    const { url } = await postJson<{ url: string }>(
-      "/api/billing/checkout",
-      {},
-      token,
-    );
-    window.location.href = url;
-  }, []);
+  const startCheckout = useCallback(
+    async (plan: "monthly" | "annual" = "monthly") => {
+      const token = store.get(TOKEN_KEY) ?? "";
+      const { url } = await postJson<{ url: string }>(
+        "/api/billing/checkout",
+        { plan },
+        token,
+      );
+      window.location.href = url;
+    },
+    [],
+  );
 
   const openPortal = useCallback(async () => {
     const token = store.get(TOKEN_KEY) ?? "";

@@ -349,7 +349,8 @@ app.post(
   wrap(async (req, res) => {
     const user = await requireUser(req, res);
     if (!user) return;
-    const url = await createCheckoutUrl(user);
+    const plan = req.body?.plan === "annual" ? "annual" : "monthly";
+    const url = await createCheckoutUrl(user, plan);
     res.json({ url });
   }),
 );

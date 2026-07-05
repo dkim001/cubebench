@@ -8,10 +8,13 @@ import { submitEarlyAccess } from "../lib/api.ts";
  * billing is configured; until then it falls back to an honest early-access
  * email capture — no fake checkout ever.
  */
+type Plan = "monthly" | "annual";
+
 export default function Pricing() {
   const { user, billingAvailable, startCheckout, openPortal, refresh } = useAuth();
   const [params, setParams] = useSearchParams();
   const [notice, setNotice] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Plan>("annual");
 
   // Returning from Stripe Checkout: refresh the plan and show the outcome.
   useEffect(() => {
@@ -57,9 +60,37 @@ export default function Pricing() {
 
         <div className="pricing__col">
           <span className="why__label why__label--accent">Pro</span>
+
+          <div className="plan__toggle" role="group" aria-label="Billing period">
+            <button
+              className={`plan__toggle-btn${plan === "monthly" ? " is-active" : ""}`}
+              onClick={() => setPlan("monthly")}
+              aria-pressed={plan === "monthly"}
+            >
+              Monthly
+            </button>
+            <button
+              className={`plan__toggle-btn${plan === "annual" ? " is-active" : ""}`}
+              onClick={() => setPlan("annual")}
+              aria-pressed={plan === "annual"}
+            >
+              Yearly
+              <span className="plan__save">Save 39%</span>
+            </button>
+          </div>
+
           <p className="plan__price">
-            <span className="plan__amount mono">$3</span>
-            <span className="plan__per">/month · first month free</span>
+            {plan === "monthly" ? (
+              <>
+                <span className="plan__amount mono">$2.99</span>
+                <span className="plan__per">/month</span>
+              </>
+            ) : (
+              <>
+                <span className="plan__amount mono">$21.81</span>
+                <span className="plan__per">/year · $1.82/mo, billed yearly</span>
+              </>
+            )}
           </p>
           <ul className="plan__features">
             <li>The entire library of past WCA competitions</li>
@@ -69,6 +100,7 @@ export default function Pricing() {
           <ProAction
             isPro={Boolean(user?.pro)}
             billingAvailable={billingAvailable}
+            plan={plan}
             startCheckout={startCheckout}
             openPortal={openPortal}
           />
@@ -77,7 +109,7 @@ export default function Pricing() {
 
       <p className="pricing__note tertiary">
         {billingAvailable
-          ? "Cancel anytime. Your first month is free, and you won't be charged until it ends."
+          ? "Cancel anytime. Your free trial won't be charged until it ends, and yearly saves 39% over paying monthly."
           : "Pro is launching soon. No payment is taken now."}
       </p>
 
@@ -89,8 +121,8 @@ export default function Pricing() {
             a: "Yes. Manage or cancel from the billing portal at any time. If you cancel, Pro stays active until the end of the period you've already paid for.",
           },
           {
-            q: "What happens after the free month?",
-            a: "The subscription renews at $3 a month. Cancel during the trial and you pay nothing at all.",
+            q: "What happens after the free trial?",
+            a: "The subscription renews at $2.99 a month, or $21.81 a year if you pick yearly (a 39% saving). Cancel during the trial and you pay nothing at all.",
           },
           {
             q: "Is my card information safe?",
@@ -115,12 +147,14 @@ export default function Pricing() {
 function ProAction({
   isPro,
   billingAvailable,
+  plan,
   startCheckout,
   openPortal,
 }: {
   isPro: boolean;
   billingAvailable: boolean;
-  startCheckout: () => Promise<void>;
+  plan: Plan;
+  startCheckout: (plan?: Plan) => Promise<void>;
   openPortal: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -159,7 +193,7 @@ function ProAction({
         <button
           className="btn plan__cta"
           disabled={busy}
-          onClick={() => go(startCheckout)}
+          onClick={() => go(() => startCheckout(plan))}
         >
           {busy ? "Starting…" : "Upgrade to Pro"}
         </button>

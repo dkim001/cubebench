@@ -17,10 +17,13 @@ import {
  */
 
 const SECRET = process.env.STRIPE_SECRET_KEY ?? "";
-const PRICE_ID = process.env.STRIPE_PRICE_ID ?? "";
+const PRICE_ID = process.env.STRIPE_PRICE_ID ?? ""; // monthly
+const PRICE_ID_ANNUAL = process.env.STRIPE_PRICE_ID_ANNUAL ?? ""; // yearly (optional)
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
 const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
-const TRIAL_DAYS = 30; // "first month free"
+const TRIAL_DAYS = 30; // free trial length
+
+export type BillingPlan = "monthly" | "annual";
 
 const stripe = SECRET ? new Stripe(SECRET) : null;
 
@@ -57,12 +60,25 @@ async function customerFor(user: User): Promise<string> {
 }
 
 /** Hosted Checkout for the Pro subscription (with the free trial). */
-export async function createCheckoutUrl(user: User): Promise<string> {
+export async function createCheckoutUrl(
+  user: User,
+  plan: BillingPlan = "monthly",
+): Promise<string> {
+  const stripeClient = client();
+  const price = plan === "annual" ? PRICE_ID_ANNUAL : PRICE_ID;
+  if (!price) {
+    throw new BillingError(
+      plan === "annual"
+        ? "The annual plan isn't configured on this server."
+        : "Billing isn't configured on this server.",
+      503,
+    );
+  }
   const customer = await customerFor(user);
-  const session = await client().checkout.sessions.create({
+  const session = await stripeClient.checkout.sessions.create({
     mode: "subscription",
     customer,
-    line_items: [{ price: PRICE_ID, quantity: 1 }],
+    line_items: [{ price, quantity: 1 }],
     subscription_data: { trial_period_days: TRIAL_DAYS },
     client_reference_id: user.id,
     allow_promotion_codes: true,
