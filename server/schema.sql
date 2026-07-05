@@ -32,3 +32,12 @@ create table if not exists early_access (
   email      text primary key,
   created_at timestamptz not null default now()
 );
+
+-- Row Level Security. Our server connects with the full Postgres role, which
+-- BYPASSES RLS, so these queries are unaffected. But Supabase auto-exposes a
+-- public REST API (anon key) for public-schema tables; enabling RLS with NO
+-- policies denies that API all access, so no one can read these tables —
+-- including password hashes — through it. Do not add policies.
+alter table users        enable row level security;
+alter table sessions     enable row level security;
+alter table early_access enable row level security;
