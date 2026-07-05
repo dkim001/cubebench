@@ -57,7 +57,23 @@
       "Bash(node -e \"import\\('./src/auth.ts'\\).then\\(m=>m.getUser\\('x'\\)\\).then\\(\\(\\)=>console.log\\('server loads users ok'\\)\\).catch\\(e=>console.log\\('ERR',e.message\\)\\)\")",
       "Bash(curl -s --max-time 8 localhost:4000/health)",
       "Bash(curl -s --max-time 10 localhost:5173/api/auth/config)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 8 localhost:5173/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 8 localhost:5173/)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=6 -T git@github.com)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=8 -T git@github.com)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(node -e \"console.log\\(require\\('./server/package.json'\\).scripts?.start || '\\(no start script\\)'\\)\")",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./server/package.json'\\).engines||{}\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./client/package.json'\\); console.log\\('deps:', Object.keys\\(p.dependencies||{}\\).filter\\(d=>/vite|typescript/.test\\(d\\)\\)\\); console.log\\('devDeps:', Object.keys\\(p.devDependencies||{}\\).filter\\(d=>/vite|typescript/.test\\(d\\)\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./client/package.json'\\).scripts.build\\)\")",
+      "Bash(git commit -q -m ' *)",
+      "Bash(npm --prefix server install)",
+      "Bash(xargs kill -9)",
+      "Bash(pkill -f \"node.*src/index.ts\")",
+      "Bash(DATABASE_URL=\"postgresql://u:p@localhost:6543/postgres\" node server/src/index.ts)",
+      "Read(//tmp/**)",
+      "Bash(curl -s --max-time 6 localhost:4000/health)",
+      "Bash(curl -s --max-time 6 localhost:4000/api/auth/config)"
     ]
   }
 }

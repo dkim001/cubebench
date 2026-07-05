@@ -3,10 +3,8 @@ import {
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { OAuth2Client } from "google-auth-library";
+import { sql } from "./db.ts";
 
 /**
  * Accounts and sessions.
@@ -15,9 +13,9 @@ import { OAuth2Client } from "google-auth-library";
  *   - google:<email> — verified via a Google Identity Services ID token
  *   - email:<email>  — email + password (scrypt-hashed, per-user salt)
  *
- * Users persist as JSONL (last line per id wins, so updates are appends).
- * Sessions are in-memory, TTL'd and bounded. Billing state (Stripe customer +
- * subscription status) lives on the user and is written by the webhook.
+ * Users and sessions live in Postgres (Supabase), so they survive restarts and
+ * deploys. Billing state (Stripe customer + subscription status) lives on the
+ * user row and is written by the webhook.
  */
 
 export type SubStatus =
@@ -74,9 +72,6 @@ export function publicUser(user: User) {
   return { ...rest, pro: isPro(user) };
 }
 
-const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
-const USERS_FILE = join(DATA_DIR, "users.jsonl");
-
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
@@ -109,53 +104,58 @@ function verifyPassword(password: string, stored: string): boolean {
   return expected.length === got.length && timingSafeEqual(expected, got);
 }
 
-// ---------- user store ----------
+// ---------- user store (Postgres) ----------
 
-let usersLoading: Promise<Map<string, User>> | null = null;
+/** Map a database row (snake_case) to the User shape (camelCase). */
+type UserRow = {
+  id: string;
+  key: string;
+  provider: Provider;
+  email: string;
+  name: string;
+  password_hash: string | null;
+  created_at: Date | string;
+  profile: UserProfile | null;
+  stripe_customer_id: string | null;
+  sub_status: SubStatus | null;
+  current_period_end: string | number | null;
+};
 
-async function readUsers(): Promise<Map<string, User>> {
-  const map = new Map<string, User>();
-  try {
-    const raw = await readFile(USERS_FILE, "utf8");
-    for (const line of raw.split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        const u = JSON.parse(line) as User;
-        if (!u.key) u.key = `${u.provider}:${u.email}`;
-        if (u.id) map.set(u.id, u); // later lines overwrite: append = update
-      } catch {
-        // skip a malformed line rather than failing every sign-in
-      }
-    }
-  } catch {
-    // no users yet
-  }
-  return map;
-}
-
-// Memoize the loading PROMISE so two cold requests can't race the assignment.
-function loadUsers(): Promise<Map<string, User>> {
-  if (!usersLoading) usersLoading = readUsers();
-  return usersLoading;
-}
-
-async function persist(user: User): Promise<void> {
-  await mkdir(DATA_DIR, { recursive: true });
-  await appendFile(USERS_FILE, JSON.stringify(user) + "\n", "utf8");
+function rowToUser(row: UserRow): User {
+  return {
+    id: row.id,
+    key: row.key,
+    provider: row.provider,
+    email: row.email,
+    name: row.name,
+    passwordHash: row.password_hash ?? undefined,
+    createdAt:
+      row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : String(row.created_at),
+    profile: row.profile ?? {},
+    stripeCustomerId: row.stripe_customer_id ?? undefined,
+    subStatus: row.sub_status ?? undefined,
+    // int8 comes back as a string from postgres.js; epoch ms fits in a Number.
+    currentPeriodEnd:
+      row.current_period_end != null ? Number(row.current_period_end) : undefined,
+  };
 }
 
 async function findByKey(key: string): Promise<User | undefined> {
-  const users = await loadUsers();
-  for (const u of users.values()) if (u.key === key) return u;
-  return undefined;
+  const rows = await sql<UserRow[]>`select * from users where key = ${key} limit 1`;
+  return rows[0] ? rowToUser(rows[0]) : undefined;
 }
 
-/** Persist BEFORE mutating the in-memory map, so a failed write can't leave a
- *  phantom account that vanishes on restart. */
 async function insertUser(user: User): Promise<User> {
-  const users = await loadUsers();
-  await persist(user);
-  users.set(user.id, user);
+  await sql`
+    insert into users (
+      id, key, provider, email, name, password_hash, created_at, profile
+    ) values (
+      ${user.id}, ${user.key}, ${user.provider}, ${user.email}, ${user.name},
+      ${user.passwordHash ?? null}, ${user.createdAt}, ${sql.json(user.profile)}
+    )
+  `;
   return user;
 }
 
@@ -164,27 +164,34 @@ export async function patchUser(
   userId: string,
   patch: Partial<User>,
 ): Promise<User | undefined> {
-  const users = await loadUsers();
-  const user = users.get(userId);
+  const user = await getUser(userId);
   if (!user) return undefined;
   const updated: User = {
     ...user,
     ...patch,
     profile: { ...user.profile, ...(patch.profile ?? {}) },
   };
-  await persist(updated);
-  users.set(userId, updated);
+  // Only mutable columns; id/key/provider/email/createdAt are immutable.
+  await sql`
+    update users set
+      name = ${updated.name},
+      password_hash = ${updated.passwordHash ?? null},
+      profile = ${sql.json(updated.profile)},
+      stripe_customer_id = ${updated.stripeCustomerId ?? null},
+      sub_status = ${updated.subStatus ?? null},
+      current_period_end = ${updated.currentPeriodEnd ?? null}
+    where id = ${userId}
+  `;
   return updated;
 }
 
 export async function findByStripeCustomer(
   customerId: string,
 ): Promise<User | undefined> {
-  const users = await loadUsers();
-  for (const u of users.values()) {
-    if (u.stripeCustomerId === customerId) return u;
-  }
-  return undefined;
+  const rows = await sql<UserRow[]>`
+    select * from users where stripe_customer_id = ${customerId} limit 1
+  `;
+  return rows[0] ? rowToUser(rows[0]) : undefined;
 }
 
 export async function updateProfile(
@@ -199,43 +206,45 @@ export async function updateProfile(
 }
 
 export async function getUser(userId: string): Promise<User | undefined> {
-  return (await loadUsers()).get(userId);
+  const rows = await sql<UserRow[]>`select * from users where id = ${userId} limit 1`;
+  return rows[0] ? rowToUser(rows[0]) : undefined;
 }
 
-// ---------- sessions (in-memory, TTL'd and bounded) ----------
+// ---------- sessions (Postgres, TTL'd) ----------
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const MAX_SESSIONS = 10_000;
 
-type Session = { userId: string; expiresAt: number };
-const sessions = new Map<string, Session>();
-
-export function createSession(userId: string): string {
-  if (sessions.size >= MAX_SESSIONS) {
-    const oldest = sessions.keys().next().value;
-    if (oldest !== undefined) sessions.delete(oldest);
-  }
+export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("hex");
-  sessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  await sql`
+    insert into sessions (token, user_id, expires_at)
+    values (${token}, ${userId}, ${expiresAt})
+  `;
   return token;
 }
 
 export async function userForToken(token: string): Promise<User | undefined> {
-  const session = sessions.get(token);
+  if (!token) return undefined;
+  const rows = await sql<{ user_id: string; expires_at: string }[]>`
+    select user_id, expires_at from sessions where token = ${token} limit 1
+  `;
+  const session = rows[0];
   if (!session) return undefined;
-  if (session.expiresAt <= Date.now()) {
-    sessions.delete(token);
+  if (Number(session.expires_at) <= Date.now()) {
+    await sql`delete from sessions where token = ${token}`;
     return undefined;
   }
-  return (await loadUsers()).get(session.userId);
+  return getUser(session.user_id);
 }
 
-export function destroySession(token: string): void {
-  sessions.delete(token);
+export async function destroySession(token: string): Promise<void> {
+  if (!token) return;
+  await sql`delete from sessions where token = ${token}`;
 }
 
-function issue(user: User): { user: User; token: string } {
-  return { user, token: createSession(user.id) };
+async function issue(user: User): Promise<{ user: User; token: string }> {
+  return { user, token: await createSession(user.id) };
 }
 
 // ---------- Google ----------

@@ -1,6 +1,7 @@
-# Render Blueprint — deploys Cube Bench as a single always-on web service.
-# The Express server serves both the API and the built React client, and
-# stores accounts/emails on a persistent disk so they survive deploys.
+# Render Blueprint — deploys Cube Bench as a single web service.
+# The Express server serves both the API and the built React client. Accounts,
+# sessions, and early-access emails live in Supabase (Postgres), so no
+# persistent disk is needed and the free tier works.
 # Docs: https://render.com/docs/blueprint-spec
 services:
   - type: web
@@ -12,15 +13,12 @@ services:
     buildCommand: npm --prefix server install && npm --prefix client install --include=dev && npm --prefix client run build
     startCommand: npm --prefix server start
     healthCheckPath: /health
-    # Persistent disk for the file-backed user store (server/data/*.jsonl).
-    # Mount path matches where auth.ts resolves DATA_DIR at runtime.
-    disk:
-      name: data
-      mountPath: /opt/render/project/src/server/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "24"
+      # Supabase transaction-pooler connection string (port 6543). Required.
+      - key: DATABASE_URL
+        sync: false
       # Public base URL of the deployed app. Set to your onrender.com URL
       # first, then your custom domain once DNS is pointed. Used by Stripe
       # redirects and Google origin checks.

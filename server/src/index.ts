@@ -1,10 +1,10 @@
 import express from "express";
 import cors from "cors";
 import { rateLimit } from "express-rate-limit";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sql } from "./db.ts";
 import { TTL, withCache } from "./cache.ts";
 import { ROUND_TYPES } from "./roundTypes.ts";
 import {
@@ -115,22 +115,6 @@ app.get("/ready", async (_req, res) => {
       error: err instanceof Error ? err.message : String(err),
     });
   }
-});
-
-// Friendly root: this is the API server, not the app. Avoids a cryptic
-// "Cannot GET /" if someone opens port 4000 directly — the UI is on 5173.
-app.get("/", (_req, res) => {
-  res.json({
-    service: "cube-benchmark-api",
-    note: "This is the API. The app runs on the Vite dev server (port 5173).",
-    endpoints: [
-      "/health",
-      "/ready",
-      "/api/competitions?q=",
-      "/api/competitions/:id/round",
-      "/api/competitions/:id/ranking?roundTypeId=1",
-    ],
-  });
 });
 
 // ---- Data endpoints ----
@@ -348,10 +332,13 @@ app.post(
   }),
 );
 
-app.post("/api/auth/signout", (req, res) => {
-  destroySession(bearerToken(req));
-  res.json({ status: "ok" });
-});
+app.post(
+  "/api/auth/signout",
+  wrap(async (req, res) => {
+    await destroySession(bearerToken(req));
+    res.json({ status: "ok" });
+  }),
+);
 
 // ---- Billing: real Stripe subscription (config-gated) ----
 
@@ -393,38 +380,12 @@ app.post(
 );
 
 // ---- Early access email capture ----
-// Honest pre-launch capture only: no payment, no checkout, just an email
-// appended to a local JSONL file. Idempotent per address.
+// Honest pre-launch capture only: no payment, no checkout — just an email
+// stored in Postgres. Idempotent per address (ON CONFLICT DO NOTHING).
 
-const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
-const EARLY_ACCESS_FILE = join(DATA_DIR, "early-access.jsonl");
 const EMAIL_MAX_LEN = 254;
 // Deliberately loose shape check — the goal is catching typos, not RFC 5322.
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** Emails already captured; hydrated from disk once, then kept in memory. */
-let knownEmails: Set<string> | null = null;
-
-async function loadKnownEmails(): Promise<Set<string>> {
-  if (knownEmails) return knownEmails;
-  const set = new Set<string>();
-  try {
-    const raw = await readFile(EARLY_ACCESS_FILE, "utf8");
-    for (const line of raw.split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        const parsed = JSON.parse(line) as { email?: string };
-        if (parsed.email) set.add(parsed.email);
-      } catch {
-        // skip malformed line; don't let one bad row break signups
-      }
-    }
-  } catch {
-    // file doesn't exist yet — first signup will create it
-  }
-  knownEmails = set;
-  return set;
-}
 
 app.post(
   "/api/early-access",
@@ -438,16 +399,10 @@ app.post(
       res.status(400).json({ error: "Please enter a valid email address." });
       return;
     }
-    const known = await loadKnownEmails();
-    if (!known.has(email)) {
-      await mkdir(DATA_DIR, { recursive: true });
-      await appendFile(
-        EARLY_ACCESS_FILE,
-        JSON.stringify({ email, ts: new Date().toISOString() }) + "\n",
-        "utf8",
-      );
-      known.add(email);
-    }
+    await sql`
+      insert into early_access (email) values (${email})
+      on conflict (email) do nothing
+    `;
     res.json({ status: "ok" });
   }),
 );
