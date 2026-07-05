@@ -83,7 +83,10 @@
       "Bash(curl -s --max-time 12 https://www.cubebench.app/health)",
       "Bash(curl -s --max-time 12 -o /dev/null -D - https://cubebench.app/health)",
       "Bash(npx --yes esbuild@0.24.0 server/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=server/dist/app.js)",
-      "Bash(node --env-file=server/.env vsim.mjs)"
+      "Bash(node --env-file=server/.env vsim.mjs)",
+      "Bash(curl -s --max-time 15 https://www.cubebench.app/health)",
+      "Bash(curl -s --max-time 15 -L https://www.cubebench.app/health)",
+      "Bash(curl -s --max-time 15 -L -o /dev/null -w \"%{http_code}\\\\n\" https://www.cubebench.app/)"
     ]
   }
 }

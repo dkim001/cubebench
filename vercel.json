@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm --prefix client install && npm --prefix client run build && npx --yes esbuild@0.24.0 server/src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=server/dist/app.js",
   "outputDirectory": "client/dist",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "server/dist/**"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/health", "destination": "/api" },
