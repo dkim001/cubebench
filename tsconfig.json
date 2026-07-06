@@ -1,0 +1,17 @@
+{
+  "// note": "Scopes Vercel's serverless type-check to the /api entry only, permissively, so it never type-checks the server source (which targets Node type-stripping, not tsc). The client has its own tsconfig and is unaffected.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": false,
+    "types": []
+  },
+  "include": ["api"],
+  "exclude": ["node_modules", "server", "client"]
+}
