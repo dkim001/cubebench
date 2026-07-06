@@ -73,31 +73,54 @@ export function searchCompetitions(query: string): Promise<{ competitions: Compe
   return getJson(`/api/competitions?q=${encodeURIComponent(query)}`);
 }
 
-/** The solvable 3x3 rounds of a competition (first → final). */
-export function getRounds(id: string): Promise<{
+/** One selectable event id + name that a competition held (already filtered to solvable). */
+export type EventMeta = { id: string; name: string };
+
+/** The solvable events a competition held. */
+export function getEvents(id: string): Promise<{
   competition: Competition;
+  events: EventMeta[];
+}> {
+  return getJson(`/api/competitions/${encodeURIComponent(id)}/events`);
+}
+
+/** The solvable rounds of a competition for one event (first → final). Defaults to 3x3. */
+export function getRounds(
+  id: string,
+  event = "333",
+): Promise<{
+  competition: Competition;
+  event: string;
   available: boolean;
   reason?: string;
   rounds: RoundMeta[];
 }> {
-  return getJson(`/api/competitions/${encodeURIComponent(id)}/rounds`);
+  return getJson(
+    `/api/competitions/${encodeURIComponent(id)}/rounds?event=${encodeURIComponent(event)}`,
+  );
 }
 
-/** One round's scrambles. Omit roundTypeId for the first round. */
+/** One round's scrambles. Omit roundTypeId for the first round. Defaults to 3x3. */
 export function getRound(
   id: string,
   roundTypeId?: string,
-): Promise<{ competition: Competition; round: RoundScrambleSet }> {
-  const q = roundTypeId ? `?roundTypeId=${encodeURIComponent(roundTypeId)}` : "";
-  return getJson(`/api/competitions/${encodeURIComponent(id)}/round${q}`);
+  event = "333",
+): Promise<{ competition: Competition; event: string; round: RoundScrambleSet }> {
+  const params = new URLSearchParams({ event });
+  if (roundTypeId) params.set("roundTypeId", roundTypeId);
+  return getJson(
+    `/api/competitions/${encodeURIComponent(id)}/round?${params.toString()}`,
+  );
 }
 
 export function getRanking(
   id: string,
   roundTypeId: string,
+  event = "333",
 ): Promise<{ ranking: RankingData }> {
+  const params = new URLSearchParams({ event, roundTypeId });
   return getJson(
-    `/api/competitions/${encodeURIComponent(id)}/ranking?roundTypeId=${encodeURIComponent(roundTypeId)}`,
+    `/api/competitions/${encodeURIComponent(id)}/ranking?${params.toString()}`,
   );
 }
 

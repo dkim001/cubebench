@@ -89,7 +89,10 @@
       "Bash(curl -s --max-time 15 -L -o /dev/null -w \"%{http_code}\\\\n\" https://www.cubebench.app/)",
       "Bash(git fetch *)",
       "Bash(curl -s --max-time 15 -L https://www.cubebench.app/api/auth/config)",
-      "Bash(curl -s --max-time 20 -L -X POST https://www.cubebench.app/api/auth/signup -H 'Content-Type: application/json' -d '{\"email\":\"__TRACKED_VAR__\",\"password\":\"testpass123\",\"name\":\"Live Test\"}')"
+      "Bash(curl -s --max-time 20 -L -X POST https://www.cubebench.app/api/auth/signup -H 'Content-Type: application/json' -d '{\"email\":\"__TRACKED_VAR__\",\"password\":\"testpass123\",\"name\":\"Live Test\"}')",
+      "Bash(node --env-file=server/.env server/src/index.ts)",
+      "Bash(curl -s --max-time 25 localhost:4000/api/competitions/__TRACKED_VAR__/events)",
+      "Bash(node --experimental-strip-types src/lib/cubing.test.ts)"
     ]
   }
 }

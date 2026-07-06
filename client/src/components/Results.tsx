@@ -8,9 +8,10 @@ import {
   madeTheCut,
   ordinal,
   placeAverage,
-  wcaAo5FromAttempts,
+  wcaAverageFromAttempts,
   type Attempt,
 } from "../lib/cubing.ts";
+import type { ClientEvent } from "../lib/events.ts";
 
 /** Self-reported level buckets -> comparable cs ranges. */
 const LEVEL_RANGES: Record<string, { name: string; lo: number; hi: number }> = {
@@ -56,12 +57,14 @@ function Rise({
 
 export function Results({
   comp,
+  event,
   round,
   attempts,
   onRestart,
   onAdvance,
 }: {
   comp: Competition;
+  event: ClientEvent;
   round: RoundScrambleSet;
   attempts: Attempt[];
   onRestart: () => void;
@@ -70,15 +73,21 @@ export function Results({
 }) {
   const { user } = useAuth();
 
-  // Official average, DNF-aware: null means the average itself is DNF.
-  const avgCs = wcaAo5FromAttempts(attempts);
+  // Mean of 3 keeps every attempt; average of 5 drops one best + one worst.
+  const drops = event.format === "ao5";
+
+  // Official average, DNF-aware (format-specific): null means the average is DNF.
+  const avgCs = wcaAverageFromAttempts(attempts, event.format);
   const avgText = avgCs === null ? "DNF" : formatCentiseconds(avgCs);
 
-  // Best/worst marking (skipped for a DNF average — nothing "counts").
+  // Best/worst marking. Mo3 drops nothing, so it marks neither.
   const orderVals = attempts.map((a) => (a.dnf ? Infinity : attemptCs(a)));
-  const bestIdx = avgCs === null ? -1 : orderVals.indexOf(Math.min(...orderVals));
+  const bestIdx =
+    avgCs === null || !drops ? -1 : orderVals.indexOf(Math.min(...orderVals));
   const worstIdx =
-    avgCs === null ? -1 : orderVals.lastIndexOf(Math.max(...orderVals));
+    avgCs === null || !drops
+      ? -1
+      : orderVals.lastIndexOf(Math.max(...orderVals));
 
   type Neighbor = { rank: number; name: string; averageCs: number };
   const [ranking, setRanking] = useState<{
@@ -114,7 +123,7 @@ export function Results({
       setRankError("round could not be identified");
       return;
     }
-    getRanking(comp.id, round.roundTypeId)
+    getRanking(comp.id, round.roundTypeId, event.id)
       .then(({ ranking: r }) => {
         if (cancelled) return;
         if (r.totalCompetitors === 0) {
@@ -168,10 +177,12 @@ export function Results({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comp.id, retryNonce]);
+  }, [comp.id, event.id, retryNonce]);
 
+  // The self-reported level context is calibrated to 3x3 averages only, so it
+  // is shown for 333 and omitted for every other event.
   const context =
-    avgCs !== null && ranking
+    avgCs !== null && ranking && event.id === "333"
       ? levelContext(avgCs, user?.profile.avg333)
       : null;
 
@@ -183,7 +194,9 @@ export function Results({
           <div className="results__avg mono avg-rise">{avgText}</div>
         </div>
         <p className="muted results__avg-label">
-          {avgCs === null ? "WCA average of 5: DNF" : "WCA average of 5"}
+          {avgCs === null
+            ? `WCA ${event.formatName}: DNF`
+            : `WCA ${event.formatName}`}
         </p>
       </Rise>
 
@@ -191,9 +204,10 @@ export function Results({
         <div className="card results__rank">
           {avgCs === null && (
             <p className="results__rank-line">
-              Two or more DNFs make the average itself a DNF, and in an
-              official round that wouldn't place. Solve the round again and
-              keep it clean.
+              {drops
+                ? "Two or more DNFs make the average itself a DNF, and in an official round that wouldn't place."
+                : "In a mean of 3 a single DNF makes the whole mean a DNF, and in an official round that wouldn't place."}{" "}
+              Solve the round again and keep it clean.
             </p>
           )}
           {avgCs !== null && !ranking && !rankError && (
@@ -226,7 +240,7 @@ export function Results({
                 of <strong className="mono">{ranking.total}</strong>
               </p>
               <p className="muted results__rank-sub">
-                {round.roundName ?? "First round"} of 3×3 at {comp.name}
+                {round.roundName ?? "First round"} of {event.display} at {comp.name}
                 {ranking.fastestCs != null && (
                   <> · winner averaged {formatCentiseconds(ranking.fastestCs)}</>
                 )}
@@ -369,11 +383,15 @@ export function Results({
 
       <Rise index={5}>
         <p className="tertiary results__drop-note">
-          Best and worst are dropped. The average is the mean of the middle
-          three.
+          {drops
+            ? "Best and worst are dropped. The average is the mean of the middle three."
+            : "Nothing is dropped. The result is the mean of all three solves."}
           {attempts.some((a) => a.plus2 && !a.dnf) &&
             " A “+” marks a +2 penalty."}
-          {attempts.some((a) => a.dnf) && " A DNF counts as the worst attempt."}
+          {drops && attempts.some((a) => a.dnf) &&
+            " A DNF counts as the worst attempt."}
+          {!drops && attempts.some((a) => a.dnf) &&
+            " A single DNF makes the mean a DNF."}
         </p>
       </Rise>
 

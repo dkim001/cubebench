@@ -17,6 +17,8 @@ import {
   wcaAo5Cs,
   wcaAo5FromAttempts,
   wcaAo5Ms,
+  wcaAverageCs,
+  wcaAverageFromAttempts,
   type Attempt,
   type Solve,
 } from "./cubing.ts";
@@ -113,6 +115,37 @@ check("DNF attempt displays as DNF", () => {
 });
 check("DNF-aware Ao5 rejects wrong count", () => {
   assert.throws(() => wcaAo5FromAttempts([t(1), t(2)]));
+});
+
+// --- Mean of 3 (WCA: mean all three; ANY DNF => DNF; no dropping) ---
+check("Mo3 is the mean of all three (nothing dropped)", () => {
+  // 10,12,14 -> mean 12.00; the best/worst are NOT dropped
+  const attempts = [t(10), t(12), t(14)];
+  assert.equal(wcaAverageFromAttempts(attempts, "mo3"), 1200);
+});
+check("Mo3 with any DNF is DNF (null)", () => {
+  const attempts = [t(10), t(12, false, true), t(14)];
+  assert.equal(wcaAverageFromAttempts(attempts, "mo3"), null);
+});
+check("Mo3 applies +2 before averaging", () => {
+  // 10, 12(=10+2), 14 -> mean(10,12,14) = 12.00
+  const attempts = [t(10), t(10, true), t(14)];
+  assert.equal(wcaAverageFromAttempts(attempts, "mo3"), 1200);
+});
+check("Mo3 rejects wrong count", () => {
+  assert.throws(() => wcaAverageFromAttempts([t(1), t(2)], "mo3"));
+});
+check("wcaAverageCs means all three cs values for mo3", () => {
+  // (1000+1200+1401)/3 = 1200.33 -> 1200
+  assert.equal(wcaAverageCs([1000, 1200, 1401], "mo3"), 1200);
+});
+check("wcaAverageFromAttempts delegates to Ao5 for ao5", () => {
+  const attempts = [t(10), t(11), t(12), t(13), t(14)];
+  assert.equal(wcaAverageFromAttempts(attempts, "ao5"), 1200);
+  assert.equal(wcaAverageCs([1000, 1100, 1200, 1300, 1400], "ao5"), 1200);
+});
+check("wcaAverageCs rejects a non-3 mo3 input", () => {
+  assert.throws(() => wcaAverageCs([1000, 1200], "mo3"));
 });
 
 // --- cs-domain Ao5 consistency (average agrees with displayed attempts) ---

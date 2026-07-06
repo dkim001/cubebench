@@ -7,6 +7,8 @@
  * official results, so the comparison is apples-to-apples.
  */
 
+import type { EventFormat } from "./events.ts";
+
 export type StageKey = "cross" | "f2l" | "oll" | "pll";
 
 export const STAGE_ORDER: StageKey[] = ["cross", "f2l", "oll", "pll"];
@@ -87,6 +89,44 @@ export function wcaAo5FromAttempts(attempts: Attempt[]): number | null {
   return Math.round(
     middleThree.reduce((sum, t) => sum + t, 0) / middleThree.length,
   );
+}
+
+/**
+ * Format-aware WCA average over attempts, DNF-aware. Delegates to the existing
+ * Ao5 logic for "ao5" (5 attempts) and applies the mean-of-3 rule for "mo3":
+ *   - "ao5": drop best+worst, mean the middle three (single DNF is the worst
+ *     and is dropped; two+ DNFs make the average DNF). Unchanged from before.
+ *   - "mo3": mean of ALL three effective times, no dropping; ANY DNF makes the
+ *     average DNF (returns null).
+ * Attempts are quantized to centiseconds first (+2 already included), so the
+ * average is provably consistent with the displayed attempts.
+ */
+export function wcaAverageFromAttempts(
+  attempts: Attempt[],
+  format: EventFormat,
+): number | null {
+  if (format === "ao5") return wcaAo5FromAttempts(attempts);
+  // mean of 3
+  if (attempts.length !== 3) {
+    throw new Error(`Mo3 needs exactly 3 attempts, got ${attempts.length}`);
+  }
+  if (attempts.some((a) => a.dnf)) return null; // any DNF -> DNF mean
+  const cs = attempts.map(attemptCs);
+  return Math.round(cs.reduce((sum, t) => sum + t, 0) / cs.length);
+}
+
+/**
+ * WCA-faithful average in centiseconds from already-quantized attempt times,
+ * format-aware. "ao5" drops best+worst then means the middle three; "mo3"
+ * means all three. No DNF handling here (callers pass valid times only) — for
+ * DNF-aware averaging use `wcaAverageFromAttempts`.
+ */
+export function wcaAverageCs(attemptsCs: number[], format: EventFormat): number {
+  if (format === "ao5") return wcaAo5Cs(attemptsCs);
+  if (attemptsCs.length !== 3) {
+    throw new Error(`Mo3 needs exactly 3 times, got ${attemptsCs.length}`);
+  }
+  return Math.round(attemptsCs.reduce((sum, t) => sum + t, 0) / attemptsCs.length);
 }
 
 /**

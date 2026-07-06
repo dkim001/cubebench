@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  getRounds,
+  getEvents,
   searchCompetitions,
   type Competition,
-  type RoundMeta,
+  type EventMeta,
 } from "../lib/api.ts";
 import { FEATURED_COMPS, FEATURED_COMP_IDS } from "../lib/featured.ts";
 import { isTouchDevice } from "../lib/pointer.ts";
@@ -16,14 +16,14 @@ import { useAuth } from "../lib/auth.tsx";
  * shown. Searching reveals the whole library; non-featured comps render
  * locked and link to Pricing instead of starting a session.
  *
- * Selecting a free comp fetches its first-round 3x3 scramble set; comps whose
- * scrambles were never uploaded show "Scrambles not available" and can't be
- * started.
+ * Selecting a free comp fetches the events it held that can be simulated;
+ * comps whose scrambles were never uploaded show "Scrambles not available"
+ * and can't be started.
  */
 export function CompetitionPicker({
   onProceed,
 }: {
-  onProceed: (comp: Competition, rounds: RoundMeta[]) => void;
+  onProceed: (comp: Competition, events: EventMeta[]) => void;
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -81,19 +81,19 @@ export function CompetitionPicker({
     }
     setSelectingId(comp.id);
     try {
-      const { available, reason, rounds } = await getRounds(comp.id);
-      if (available && rounds.length > 0) {
-        onProceed(comp, rounds);
+      const { events } = await getEvents(comp.id);
+      if (events.length > 0) {
+        onProceed(comp, events);
       } else {
         setUnavailable((u) => ({
           ...u,
-          [comp.id]: reason ?? "Scrambles not available",
+          [comp.id]: "Scrambles not available",
         }));
       }
     } catch (err) {
       setUnavailable((u) => ({
         ...u,
-        [comp.id]: err instanceof Error ? err.message : "Could not load rounds",
+        [comp.id]: err instanceof Error ? err.message : "Could not load events",
       }));
     } finally {
       setSelectingId(null);
@@ -108,7 +108,7 @@ export function CompetitionPicker({
         <span className="eyebrow">Step 1</span>
         <h2 className="title">Pick a competition</h2>
         <p className="muted">
-          Search by name, city, or year, then pick any 3×3 round the
+          Search by name, city, or year, then pick an event and any round the
           competition ran.
         </p>
       </div>

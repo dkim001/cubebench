@@ -7,7 +7,6 @@ import {
   type StageKey,
 } from "../lib/cubing.ts";
 import { isTouchDevice } from "../lib/pointer.ts";
-import { CubeImage } from "./CubeImage.tsx";
 
 type Phase = "ready" | "running" | "done";
 
@@ -122,10 +121,6 @@ export function SolveTimer({
       <div className="solve__head">
         <span className="eyebrow">Solve {solveNumber}</span>
         <div className="solve__scramble mono">{scramble}</div>
-      </div>
-
-      <div className="solve__cube">
-        <CubeImage scramble={scramble} />
       </div>
 
       <div

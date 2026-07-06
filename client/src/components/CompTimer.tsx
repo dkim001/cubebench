@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatAttempt, formatMs, type Attempt } from "../lib/cubing.ts";
 import { isTouchDevice } from "../lib/pointer.ts";
-import { CubeImage } from "./CubeImage.tsx";
 
 /**
  * Competition timer following standard cubing (csTimer) conventions:
@@ -272,12 +271,6 @@ export function CompTimer({
           Solve {solveIndex + 1} of {totalSolves}
         </span>
         <div className="solve__scramble mono">{scramble}</div>
-      </div>
-
-      {/* stays mounted and collapses smoothly — no layout lurch at the
-          exact moment the user needs stillness */}
-      <div className={`solve__cube${phase !== "idle" ? " is-collapsed" : ""}`}>
-        <CubeImage scramble={scramble} />
       </div>
 
       <div

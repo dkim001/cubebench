@@ -450,6 +450,101 @@
   }
 }
 
+/* ---------- solving screen context panels ---------- */
+
+/* running attempt list + projected result for this round */
+.run-avg {
+  margin-top: 24px;
+  padding: 16px 18px;
+}
+
+.run-avg__head,
+.up-against__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.run-avg__meta {
+  font-size: 12px;
+}
+
+.run-avg__rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.run-avg__cell {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px;
+  color: var(--text);
+}
+
+.run-avg__cell .tertiary {
+  font-size: 11px;
+}
+
+.run-avg__cell--pending {
+  color: var(--text-tertiary);
+  border-style: dashed;
+}
+
+.run-avg__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.run-avg__value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* who you're up against: the real field for this event + round */
+.up-against {
+  margin-top: 12px;
+  padding: 16px 18px;
+}
+
+.up-against__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.up-against__stat {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.up-against__num {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.up-against__stat .tertiary {
+  font-size: 12px;
+}
+
 /* paused-round resume card above the picker */
 
 .resume {
@@ -521,33 +616,6 @@
   color: var(--text);
   max-width: 560px;
   line-height: 1.75;
-}
-
-.solve__cube {
-  margin: 20px 0 8px;
-  max-height: 260px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  transition:
-    max-height var(--speed-reveal) var(--ease-out),
-    opacity var(--speed-reveal) var(--ease-out),
-    margin var(--speed-reveal) var(--ease-out);
-}
-
-.solve__cube.is-collapsed {
-  max-height: 0;
-  opacity: 0;
-  margin: 0;
-}
-
-.cube-image {
-  display: block;
-}
-
-.cube-image--fallback {
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
 }
 
 /* timer: big, quiet, focused */
