@@ -27,11 +27,13 @@ import {
   stripeConfigured,
 } from "./billing.ts";
 import { FEATURED_COMP_IDS } from "./featured.ts";
+import { isSupportedEvent } from "./wcaEvents.ts";
 import {
-  get333Ranking,
-  get333RoundScrambles,
-  get333Rounds,
   getCompetition,
+  getCompetitionEvents,
+  getEventRanking,
+  getEventRounds,
+  getEventRoundScrambles,
   searchCompetitions,
   WcaError,
 } from "./wca.ts";
@@ -151,19 +153,50 @@ async function blockedByPlan(
   return true;
 }
 
-// The solvable 3x3 rounds of a competition (first → final), for the round
-// picker. Metadata only — scrambles come from /round.
+/** Read + validate the `event` query param; defaults to 3x3. Writes a 400
+ *  and returns null on an unsupported event. */
+function eventParam(req: express.Request, res: express.Response): string | null {
+  const event =
+    typeof req.query.event === "string" && req.query.event ? req.query.event : "333";
+  if (!isSupportedEvent(event)) {
+    res.status(400).json({ error: `Unsupported event "${event}".` });
+    return null;
+  }
+  return event;
+}
+
+// Which supported events this competition held (with a full scramble set).
+app.get(
+  "/api/competitions/:id/events",
+  wrap(async (req, res) => {
+    const { id } = req.params;
+    if (await blockedByPlan(req, res, id)) return;
+    const [comp, events] = await Promise.all([
+      withCache(`comp:${id}`, TTL.SHORT_MS, () => getCompetition(id)),
+      withCache(`events:${id}`, TTL.LONG_MS, () => getCompetitionEvents(id)),
+    ]);
+    res.json({ competition: comp, events });
+  }),
+);
+
+// The solvable rounds of an event at a competition (first → final), for the
+// round picker. Metadata only — scrambles come from /round.
 app.get(
   "/api/competitions/:id/rounds",
   wrap(async (req, res) => {
     const { id } = req.params;
     if (await blockedByPlan(req, res, id)) return;
+    const event = eventParam(req, res);
+    if (!event) return;
     const [comp, data] = await Promise.all([
       withCache(`comp:${id}`, TTL.SHORT_MS, () => getCompetition(id)),
-      withCache(`rounds:${id}`, TTL.LONG_MS, () => get333Rounds(id)),
+      withCache(`rounds:${id}:${event}`, TTL.LONG_MS, () =>
+        getEventRounds(id, event),
+      ),
     ]);
     res.json({
       competition: comp,
+      event,
       available: data.available,
       reason: data.reason,
       rounds: data.rounds.map((r) => ({
@@ -180,6 +213,8 @@ app.get(
   wrap(async (req, res) => {
     const { id } = req.params;
     if (await blockedByPlan(req, res, id)) return;
+    const event = eventParam(req, res);
+    if (!event) return;
     const roundTypeId =
       typeof req.query.roundTypeId === "string" ? req.query.roundTypeId : undefined;
     if (roundTypeId && !(roundTypeId in ROUND_TYPES)) {
@@ -188,20 +223,22 @@ app.get(
     }
     const [comp, round] = await Promise.all([
       withCache(`comp:${id}`, TTL.SHORT_MS, () => getCompetition(id)),
-      // Scrambles are immutable once generated -> cache long, per round.
-      withCache(`round:${id}:${roundTypeId ?? "first"}`, TTL.LONG_MS, () =>
-        get333RoundScrambles(id, roundTypeId),
+      // Scrambles are immutable once generated -> cache long, per (event, round).
+      withCache(`round:${id}:${event}:${roundTypeId ?? "first"}`, TTL.LONG_MS, () =>
+        getEventRoundScrambles(id, event, roundTypeId),
       ),
     ]);
-    res.json({ competition: comp, round });
+    res.json({ competition: comp, event, round });
   }),
 );
 
-// Real competitors (named, WCA-ordered) for a given round.
+// Real competitors (named, WCA-ordered) for a given event round.
 app.get(
   "/api/competitions/:id/ranking",
   wrap(async (req, res) => {
     const { id } = req.params;
+    const event = eventParam(req, res);
+    if (!event) return;
     const roundTypeId =
       typeof req.query.roundTypeId === "string" ? req.query.roundTypeId : "1";
     // Round codes are a small closed set; anything else is a bad request,
@@ -211,8 +248,10 @@ app.get(
       return;
     }
     const ttl = (await isFinished(id)) ? TTL.LONG_MS : TTL.SHORT_MS;
-    const ranking = await withCache(`ranking:${id}:${roundTypeId}`, ttl, () =>
-      get333Ranking(id, roundTypeId),
+    const ranking = await withCache(
+      `ranking:${id}:${event}:${roundTypeId}`,
+      ttl,
+      () => getEventRanking(id, event, roundTypeId),
     );
     // The advancement fact comes from /results, but simulating the next round
     // needs its /scrambles. Cross-check so the client only offers to simulate
@@ -224,8 +263,8 @@ app.get(
     if (ranking.nextRound) {
       let solvable: boolean | undefined = undefined;
       try {
-        const rounds = await withCache(`rounds:${id}`, TTL.LONG_MS, () =>
-          get333Rounds(id),
+        const rounds = await withCache(`rounds:${id}:${event}`, TTL.LONG_MS, () =>
+          getEventRounds(id, event),
         );
         solvable =
           rounds.available &&

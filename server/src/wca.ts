@@ -1,7 +1,7 @@
 import { roundName, roundOrder } from "./roundTypes.ts";
+import { getEventDef, minScrambles, SUPPORTED_EVENTS } from "./wcaEvents.ts";
 
 const WCA_BASE = "https://www.worldcubeassociation.org/api/v0";
-const EVENT_333 = "333";
 
 /** Per-request budget for a single WCA call. */
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -164,8 +164,8 @@ export type RoundScrambleSet = {
   scrambles?: string[];
 };
 
-/** One solvable 3x3 round of a competition (Group A, ordered, ao5-complete). */
-export type Round333 = {
+/** One solvable round of a competition (Group A, ordered, format-complete). */
+export type Round = {
   roundTypeId: string;
   roundName: string;
   order: number;
@@ -173,28 +173,35 @@ export type Round333 = {
   scrambles: string[];
 };
 
-export type Rounds333 = {
+export type Rounds = {
   available: boolean;
   reason?: string;
-  /** every solvable 3x3 round, in competition order (first → final) */
-  rounds: Round333[];
+  /** every solvable round of the event, in competition order (first → final) */
+  rounds: Round[];
 };
 
 /**
- * All solvable 3x3 rounds of a competition.
+ * All solvable rounds of a competition for one event.
  *
  * The scrambles endpoint returns ONE flat list for the whole comp, so we:
- *   1. filter to event 333,
+ *   1. filter to the event,
  *   2. split into rounds by round_type_id,
  *   3. within each round take Group A (or the first group present),
  *   4. drop is_extra backups, order by scramble_num,
- *   5. keep rounds that have a full average-of-5 (≥5 scrambles),
+ *   5. keep rounds with a full solve count for the event's format
+ *      (5 for average-of-5, 3 for mean-of-3),
  *   6. sort rounds by their real competition order.
  *
- * This is the single WCA fetch; the round list and any individual round are
- * both derived from it, so it's cached once per competition.
+ * Cached once per (competition, event).
  */
-export async function get333Rounds(id: string): Promise<Rounds333> {
+export async function getEventRounds(
+  id: string,
+  eventId: string,
+): Promise<Rounds> {
+  const def = getEventDef(eventId);
+  if (!def) {
+    return { available: false, reason: "Unsupported event", rounds: [] };
+  }
   const { data } = await wcaFetch<WcaScramble[]>(
     `/competitions/${encodeURIComponent(id)}/scrambles`,
   );
@@ -203,23 +210,24 @@ export async function get333Rounds(id: string): Promise<Rounds333> {
     return { available: false, reason: "Scrambles not available", rounds: [] };
   }
 
-  const threes = data.filter((s) => s.event_id === EVENT_333);
-  if (threes.length === 0) {
+  const forEvent = data.filter((s) => s.event_id === eventId);
+  if (forEvent.length === 0) {
     return {
       available: false,
-      reason: "No 3x3 scrambles for this competition",
+      reason: `No ${def.name} scrambles for this competition`,
       rounds: [],
     };
   }
 
   const byRound = new Map<string, WcaScramble[]>();
-  for (const s of threes) {
+  for (const s of forEvent) {
     const list = byRound.get(s.round_type_id) ?? [];
     list.push(s);
     byRound.set(s.round_type_id, list);
   }
 
-  const rounds: Round333[] = [];
+  const need = minScrambles(eventId);
+  const rounds: Round[] = [];
   for (const [code, roundScrambles] of byRound) {
     // Prefer Group "A"; otherwise the first group present.
     const groups = [...new Set(roundScrambles.map((s) => s.group_id))].sort();
@@ -228,8 +236,8 @@ export async function get333Rounds(id: string): Promise<Rounds333> {
       .filter((s) => s.group_id === groupId && !s.is_extra)
       .sort((a, b) => a.scramble_num - b.scramble_num)
       .map((s) => s.scramble);
-    // An average-of-5 round needs 5 scrambles; skip cutoff/partial rounds.
-    if (scrambles.length < 5) continue;
+    // Skip cutoff/partial rounds that lack a full solve set for the format.
+    if (scrambles.length < need) continue;
     rounds.push({
       roundTypeId: code,
       roundName: roundName(code),
@@ -242,7 +250,7 @@ export async function get333Rounds(id: string): Promise<Rounds333> {
   if (rounds.length === 0) {
     return {
       available: false,
-      reason: "No full average-of-5 3x3 rounds for this competition",
+      reason: `No full ${def.name} rounds for this competition`,
       rounds: [],
     };
   }
@@ -252,11 +260,12 @@ export async function get333Rounds(id: string): Promise<Rounds333> {
 }
 
 /** One round's scramble set. `roundTypeId` omitted → the first round. */
-export async function get333RoundScrambles(
+export async function getEventRoundScrambles(
   id: string,
+  eventId: string,
   roundTypeId?: string,
 ): Promise<RoundScrambleSet> {
-  const { available, reason, rounds } = await get333Rounds(id);
+  const { available, reason, rounds } = await getEventRounds(id, eventId);
   if (!available) return { available: false, reason };
   const round = roundTypeId
     ? rounds.find((r) => r.roundTypeId === roundTypeId)
@@ -271,6 +280,46 @@ export async function get333RoundScrambles(
     groupId: round.groupId,
     scrambles: round.scrambles,
   };
+}
+
+/**
+ * Which supported events this competition held with a full scramble set, in
+ * canonical event order. Drives the event picker. One scrambles fetch (cached),
+ * intersected with the events we support and that have enough scrambles.
+ */
+export type CompetitionEvent = { id: string; name: string };
+
+export async function getCompetitionEvents(
+  id: string,
+): Promise<CompetitionEvent[]> {
+  const { data } = await wcaFetch<WcaScramble[]>(
+    `/competitions/${encodeURIComponent(id)}/scrambles`,
+  );
+  if (!data || !Array.isArray(data) || data.length === 0) return [];
+
+  // Count non-extra Group-A-ish scrambles per (event, round) is overkill here;
+  // an event qualifies if any round has >= its solve count of real scrambles.
+  const present = new Set<string>();
+  const byEventRound = new Map<string, WcaScramble[]>();
+  for (const s of data) {
+    if (s.is_extra) continue;
+    const key = `${s.event_id}|${s.round_type_id}`;
+    const list = byEventRound.get(key) ?? [];
+    list.push(s);
+    byEventRound.set(key, list);
+  }
+  for (const [key, list] of byEventRound) {
+    const eventId = key.split("|")[0];
+    const groups = [...new Set(list.map((s) => s.group_id))].sort();
+    const groupId = groups.includes("A") ? "A" : groups[0];
+    const count = list.filter((s) => s.group_id === groupId).length;
+    if (count >= minScrambles(eventId)) present.add(eventId);
+  }
+
+  return SUPPORTED_EVENTS.filter((e) => present.has(e.id)).map((e) => ({
+    id: e.id,
+    name: e.name,
+  }));
 }
 
 export type Competitor = { name: string; averageCs: number };
@@ -299,19 +348,21 @@ export type RankingData = {
 };
 
 /**
- * Real competitors for a given 3x3 round, ordered the WCA way: valid averages
- * ascending (with names), DNF/no-average competitors excluded from the list
- * but counted in totalCompetitors. Also reports the next round's size, so the
- * client can say whether the user would have made the cut.
+ * Real competitors for a given round of an event, ordered the WCA way: valid
+ * averages ascending (with names), DNF/no-average competitors excluded from
+ * the list but counted in totalCompetitors. The WCA `average` field already
+ * reflects the event's format (average-of-5 or mean-of-3), so ranking is
+ * uniform. Also reports the next round's size for the "did you make the cut".
  */
-export async function get333Ranking(
+export async function getEventRanking(
   id: string,
+  eventId: string,
   roundTypeId: string,
 ): Promise<RankingData> {
   const { data } = await wcaFetch<WcaResult[]>(
-    `/competitions/${encodeURIComponent(id)}/results?event_id=${EVENT_333}`,
+    `/competitions/${encodeURIComponent(id)}/results?event_id=${encodeURIComponent(eventId)}`,
   );
-  const all = (data ?? []).filter((r) => r.event_id === EVENT_333);
+  const all = (data ?? []).filter((r) => r.event_id === eventId);
 
   // How many competed in each round — the next round's size is how many
   // advanced out of this one.
