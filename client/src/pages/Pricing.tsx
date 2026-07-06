@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth.tsx";
 import { submitEarlyAccess } from "../lib/api.ts";
 
 /**
- * Two plans. Pro is a real Stripe subscription ($3/mo, first month free) when
+ * Two plans. Pro is a real Stripe subscription ($3.49/mo, 3-day trial) when
  * billing is configured; until then it falls back to an honest early-access
  * email capture — no fake checkout ever.
  */
@@ -21,7 +21,7 @@ export default function Pricing() {
     const upgrade = params.get("upgrade");
     if (!upgrade) return;
     if (upgrade === "success") {
-      setNotice("You're on Pro. Your first month is free.");
+      setNotice("You're on Pro. Your 3-day free trial has started.");
       refresh();
     } else if (upgrade === "cancelled") {
       setNotice("No worries. Checkout was cancelled and nothing was charged.");

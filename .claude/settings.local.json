@@ -86,7 +86,10 @@
       "Bash(node --env-file=server/.env vsim.mjs)",
       "Bash(curl -s --max-time 15 https://www.cubebench.app/health)",
       "Bash(curl -s --max-time 15 -L https://www.cubebench.app/health)",
-      "Bash(curl -s --max-time 15 -L -o /dev/null -w \"%{http_code}\\\\n\" https://www.cubebench.app/)"
+      "Bash(curl -s --max-time 15 -L -o /dev/null -w \"%{http_code}\\\\n\" https://www.cubebench.app/)",
+      "Bash(git fetch *)",
+      "Bash(curl -s --max-time 15 -L https://www.cubebench.app/api/auth/config)",
+      "Bash(curl -s --max-time 20 -L -X POST https://www.cubebench.app/api/auth/signup -H 'Content-Type: application/json' -d '{\"email\":\"__TRACKED_VAR__\",\"password\":\"testpass123\",\"name\":\"Live Test\"}')"
     ]
   }
 }

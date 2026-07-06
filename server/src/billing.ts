@@ -21,7 +21,7 @@ const PRICE_ID = process.env.STRIPE_PRICE_ID ?? ""; // monthly
 const PRICE_ID_ANNUAL = process.env.STRIPE_PRICE_ID_ANNUAL ?? ""; // yearly (optional)
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "";
 const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
-const TRIAL_DAYS = 30; // free trial length
+const TRIAL_DAYS = 3; // free trial length
 
 export type BillingPlan = "monthly" | "annual";
 

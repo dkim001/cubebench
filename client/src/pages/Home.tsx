@@ -66,7 +66,7 @@ const FAQ = [
   },
   {
     q: "What does Pro add?",
-    a: "The full library of past WCA competitions, plus skill analytics that follow your stage splits across sessions. It's $3 a month with the first month free, and you can cancel anytime.",
+    a: "The full library of past WCA competitions, plus skill analytics that follow your stage splits across sessions. It's $3.49 a month (or $25 a year), with a 3-day free trial, and you can cancel anytime.",
   },
   {
     q: "What happens if I mis-tap mid-solve?",
