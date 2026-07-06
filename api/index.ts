@@ -1,11 +1,22 @@
-// Vercel serverless entry point. An Express app is itself a (req, res)
-// handler, so exporting it lets Vercel run the whole API as one function.
+// Vercel serverless entry point.
 //
-// It imports the server as a PRE-BUNDLED plain-JS file (server/dist/app.js,
-// produced by esbuild in the build step) rather than the raw .ts source —
-// Node can't load .ts at runtime, which is what crashed the function before.
-// vercel.json rewrites /api/*, /health, and /ready here; the client is served
-// as static files from client/dist by Vercel's CDN.
-import app from "../server/dist/app.js";
+// The bundled Express app (server/dist/app.js, built by the root postinstall)
+// is imported lazily inside the handler and wrapped in try/catch, so any
+// boot/import failure is returned as readable text in the HTTP response
+// instead of an opaque FUNCTION_INVOCATION_FAILED. This makes crashes
+// diagnosable with a plain curl.
+let appPromise: Promise<(req: unknown, res: unknown) => void> | null = null;
 
-export default app;
+export default async function handler(req: any, res: any) {
+  try {
+    if (!appPromise) {
+      appPromise = import("../server/dist/app.js").then((m) => m.default);
+    }
+    const app = await appPromise;
+    return app(req, res);
+  } catch (err: any) {
+    res.statusCode = 500;
+    res.setHeader("content-type", "text/plain");
+    res.end("BOOT ERROR:\n" + (err && err.stack ? err.stack : String(err)));
+  }
+}
